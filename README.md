@@ -11,7 +11,7 @@ Example Usage: roc -InputPath 'C:\Path\To\Matroska\Files\'
 
 ### Prerequisites
 
-.NET 4.5 and Powershell v5. Windows 10 already meets these requirements out of the box. You may have to download these components if you are running an older version.
+.NET 4.5 and Powershell v5. Windows 10 already meets these requirements out of the box. You may have to download these components if you are running an older version of Windows.
 
 ## Uses
 [ffmpeg](https://www.ffmpeg.org/) - Transcoder
