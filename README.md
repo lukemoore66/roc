@@ -4,7 +4,8 @@ PowerShell script that transcodes / remuxes Matroska files that use ordered chap
 
 ## Getting Started
 
-Download and run roc.exe
+Download and the entire git folder i.e. use the 'Clone or Download' button above, unzip everything to a folder of your choice and run roc.exe.
+
 At the prompt, type roc -help to begin.
 
 Example Usage: roc -InputPath 'C:\Path\To\Matroska\Files\'
@@ -12,6 +13,8 @@ Example Usage: roc -InputPath 'C:\Path\To\Matroska\Files\'
 ### Prerequisites
 
 .NET 4.5 and Powershell v5. Windows 10 already meets these requirements out of the box. You may have to download these components if you are running an older version of Windows.
+
+This script uses large temporary files when running, therefore, it is not recommended to run it off an SSD. You can manually specify the temp folder it uses with the -TempPath option if needed.
 
 ## Uses
 [ffmpeg](https://www.ffmpeg.org/) - Transcoder
