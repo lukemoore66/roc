@@ -7,6 +7,17 @@ Powershell Script That Transcodes / Remuxes Matroska Files That Use Ordered Chap
 Download and run roc.exe
 At the prompt, type roc -help to begin.
 
+Example Usage: roc -InputPath 'C:\Path\To\Matroska\Files\'
+
+Options:
+        [-InputPath] <String>]  - A Valid File Or Folder Path For Input File(s).
+        [-Crf <Int>]            - An Integer Ranging From 0-51. (AKA: Video Quality 14-25 Are Sane Values)
+        [-Preset <String>]      - x264 Preset. placebo, slowest, slower, slow, medium, fast, faster, ultrafast
+        [-OutputPath <String>]  - A Valid File Or Folder Path For Output File(s).
+        [-TempPath <String>]    - A Valid File Or Folder Path For Temporary File(s).
+        [-Copy <Switch>]        - Copies (Remuxes) Segments. Very Fast, But May Cause Playback Problems.
+        [-Help <Switch>]        - Shows This Help Menu.
+
 ### Prerequisites
 
 .NET 4.5 and Powershell v5. Windows 10 already meets these requirements out of the box. You may have to download these components if you are running an older version.
@@ -14,11 +25,7 @@ At the prompt, type roc -help to begin.
 ## Uses
 [ffmpeg](https://www.ffmpeg.org/) - Transcoder
 [mkvtoolnix](https://mkvtoolnix.download/index.html) - Muxer
-
-
-* [Dropwizard](http://www.dropwizard.io/1.0.2/docs/) - The web framework used
-* [Maven](https://maven.apache.org/) - Dependency Management
-* [ROME](https://rometools.github.io/rome/) - Used to generate RSS Feeds
+[PurpleBooth](https://github.com/PurpleBooth) - Readme Template
 
 ## Authors
 
