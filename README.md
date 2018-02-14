@@ -23,6 +23,8 @@ This script uses large temporary files when running, therefore, it is not recomm
 
 [PurpleBooth](https://github.com/PurpleBooth) - Readme Template
 
+[GraphicLoads](http://graphicloads.com/) - Program Icon
+
 ## Authors
 
 * **Luke Moore** - *Initial work* - [d3sim8](https://github.com/lukemoore66)
