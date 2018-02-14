@@ -1,0 +1,1 @@
+start PowerShell.exe -NoExit -NoProfile -ExecutionPolicy Bypass -Command "cd '%~dp0'; .\roc.ps1 -SetupOnly"
