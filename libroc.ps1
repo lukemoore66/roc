@@ -4,7 +4,7 @@ function Show-Help ($boolHelp) {
 @"
 roc - Remove Ordered Chapters
 
-Re-encodes / Remuxes Matroska Files That Use Ordered Chapters Into a Single Matroska File.
+Transcodes / Remuxes Matroska Files That Use Ordered Chapters Into a Single Matroska File.
 
 Example Usage: roc -InputPath 'C:\Path\To\Matroska\Files\'
 
