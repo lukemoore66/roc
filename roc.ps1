@@ -314,11 +314,11 @@ try {
 			
 			if ($floatStartTime -eq 1.000) {
 				.\bin\ffmpeg.exe -v quiet -stats -y -i $hash.InputFile -map ? -t $floatDuration -c:v $strVideoCodec -c:a $strAudioCodec -c:s $strSubCodec `
-				-preset:v $strPreset -crf $intCrf -map_chapters -1 -vf scale=624:352 $strOutputFile
+				-preset:v $strPreset -crf $intCrf -map_chapters -1 $strOutputFile
 			}
 			else {
 				.\bin\ffmpeg.exe -v quiet -stats -ss ($floatStartTime - $floatSeekOffset) -y -i $hash.InputFile -ss $floatSeekOffset -map ? -t $floatDuration `
-				-c:v $strVideoCodec -c:a $strAudioCodec -c:s $strSubCodec -preset:v $strPreset -crf $intCrf -map_chapters -1 -vf scale=624:352 $strOutputFile
+				-c:v $strVideoCodec -c:a $strAudioCodec -c:s $strSubCodec -preset:v $strPreset -crf $intCrf -map_chapters -1 $strOutputFile
 			}
 			
 			$intCounter++
