@@ -19,7 +19,7 @@ Typical Usage Looks Like This:
 roc -InputPath 'C:\Path\To\Matroska\Files\'
 ```
 
-Don't forget the quotation marks around file and folder paths, they are needed for PowerShell to take things literally. Files can also be dragged and dropped into the PowerShell window.
+Don't forget the quotation marks around file and folder paths, they are needed for PowerShell to take things literally. Files and folders can also be dragged and dropped into the PowerShell window.
 
 ### Prerequisites
 
