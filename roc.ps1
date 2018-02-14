@@ -27,7 +27,7 @@ if ($SetupOnly) {
 }
 else {
 	if (!$RocSession) {
-		Write-Host "(roc) - Remove Ordered Chapters 0.1beta By d3sim8 2018.`nType 'roc -Help' And Press Enter To Begin.`n"
+		Write-Host "(roc) - Remove Ordered Chapters 0.1beta By d3sim8 2018.`n"
 	}
 }
 
@@ -289,7 +289,7 @@ try {
 		$floatTotalDuration = ConvertFrom-Sexagesimal $xmlChapterInfo.Chapters.EditionEntry.ChapterAtom[-1].ChapterTimeEnd
 		$intTotalChunks = $arrEncodeInstructions.Count
 		
-		Write-Host ("Total Duration: " + (ConvertTo-Sexagesimal $floatTotalDuration))
+		Write-Host ("Total Output Duration: " + (ConvertTo-Sexagesimal $floatTotalDuration))
 		
 		$intCounter = 1
 		foreach ($hash in $arrEncodeInstructions) {
@@ -301,17 +301,24 @@ try {
 			
 			$strDuration = ConvertTo-Sexagesimal $floatDuration
 			$strStartTime = ConvertTo-Sexagesimal $floatStartTime
-			$strEndTime = ConvertTo-Sexagesimal $floatEndTIme
+			$strEndTime = ConvertTo-Sexagesimal $floatEndTime
 			
-			Write-Host "Processing Chunk $intCounter of $intTotalChunks Duration: $strDuration ($strStartTime - $strEndTime)"
+			if($hash.InputFile -ne $objFIle.FullName ) {
+				$strFile = "External File"
+			}
+			else {
+				$strFile = "Main File"
+			}
+			
+			Write-Host "Processing Chunk $intCounter of $intTotalChunks Duration: $strDuration Range: $strStartTime - $strEndTime Source: $strFile"
 			
 			if ($floatStartTime -eq 1.000) {
 				.\bin\ffmpeg.exe -v quiet -stats -y -i $hash.InputFile -map ? -t $floatDuration -c:v $strVideoCodec -c:a $strAudioCodec -c:s $strSubCodec `
-				-preset:v $strPreset -crf $intCrf -map_chapters -1 $strOutputFile
+				-preset:v $strPreset -crf $intCrf -map_chapters -1 -vf scale=624:352 $strOutputFile
 			}
 			else {
 				.\bin\ffmpeg.exe -v quiet -stats -ss ($floatStartTime - $floatSeekOffset) -y -i $hash.InputFile -ss $floatSeekOffset -map ? -t $floatDuration `
-				-c:v $strVideoCodec -c:a $strAudioCodec -c:s $strSubCodec -preset:v $strPreset -crf $intCrf -map_chapters -1 $strOutputFile
+				-c:v $strVideoCodec -c:a $strAudioCodec -c:s $strSubCodec -preset:v $strPreset -crf $intCrf -map_chapters -1 -vf scale=624:352 $strOutputFile
 			}
 			
 			$intCounter++
