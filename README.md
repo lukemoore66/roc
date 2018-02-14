@@ -38,7 +38,7 @@ This script uses large temporary files when running, therefore, it is not recomm
 
 ## Authors
 
-* **Luke Moore** - *Initial work* - [d3sim8](https://github.com/lukemoore66)
+* **Luke Moore** - *Initial work* - [lukemoore66](https://github.com/lukemoore66)
 
 ## License
 
