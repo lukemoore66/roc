@@ -1,14 +1,35 @@
-roc - Remove Ordered Chapters - Powershell Script
+# roc - Remove Ordered Chapters From Matroska Files
 
-Transcodes / Remuxes Matroska Files That Use Ordered Chapters Into a Single Matroska File.
+Powershell Script That Transcodes / Remuxes Matroska Files That Use Ordered Chapters Into a Single Matroska File.
 
-Example Usage: roc -InputPath 'C:\Path\To\Matroska\Files\'
+## Getting Started
 
-Options:
-	[-InputPath] <String>]	- A Valid File Or Folder Path For Input File(s).
-	[-Crf <Int>]		- An Integer Ranging From 0-51. (AKA: Video Quality 14-25 Are Sane Values)
-	[-Preset <String>]	- x264 Preset. placebo, slowest, slower, slow, medium, fast, faster, ultrafast
-	[-OutputPath <String>]	- A Valid File Or Folder Path For Output File(s).
-	[-TempPath <String>]	- A Valid File Or Folder Path For Temporary File(s).
-	[-Copy <Switch>]	- Copies (Remuxes) Segments. Very Fast, But May Cause Playback Problems.
-	[-Help <Switch>]	- Shows This Help Menu.
+Download and run roc.exe
+At the prompt, type roc -help to begin.
+
+### Prerequisites
+
+.NET 4.5 and Powershell v5. Windows 10 already meets these requirements out of the box. You may have to download these components if you are running an older version.
+
+## Uses
+[ffmpeg](https://www.ffmpeg.org/) - Transcoder
+[mkvtoolnix](https://mkvtoolnix.download/index.html) - Muxer
+
+
+* [Dropwizard](http://www.dropwizard.io/1.0.2/docs/) - The web framework used
+* [Maven](https://maven.apache.org/) - Dependency Management
+* [ROME](https://rometools.github.io/rome/) - Used to generate RSS Feeds
+
+## Authors
+
+* **Luke Moore** - *Initial work* - [d3sim8](https://github.com/lukemoore66)
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details
+
+## Acknowledgments
+
+* Hat tip to ffmpeg and mkvtoolnix devs
+* Inspiration: CoalGirls
+
