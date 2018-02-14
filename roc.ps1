@@ -303,6 +303,11 @@ try {
 			$strStartTime = ConvertTo-Sexagesimal $floatStartTime
 			$strEndTime = ConvertTo-Sexagesimal $floatEndTime
 			
+			$floatHybridSeek = ($floatStartTime - $floatSeekOffset)
+			if ($floatHybridSeek -le 0) {
+				$floatStartTime = 0.000
+			}
+			
 			if($hash.InputFile -ne $objFIle.FullName ) {
 				$strFile = "External File"
 			}
@@ -312,12 +317,14 @@ try {
 			
 			Write-Host "Processing Chunk $intCounter of $intTotalChunks Duration: $strDuration Range: $strStartTime - $strEndTime Source: $strFile"
 			
-			if ($floatStartTime -eq 1.000) {
+			#avoid seeking when possible, as it seems to be buggy sometimes
+			if ($floatStartTime -eq 0.000) {
 				.\bin\ffmpeg.exe -v quiet -stats -y -i $hash.InputFile -map ? -t $floatDuration -c:v $strVideoCodec -c:a $strAudioCodec -c:s $strSubCodec `
 				-preset:v $strPreset -crf $intCrf -map_chapters -1 $strOutputFile
 			}
+			#otherwise, we have to use seeking, seek a bit backwards, and decode that bit until we get to the start point
 			else {
-				.\bin\ffmpeg.exe -v quiet -stats -ss ($floatStartTime - $floatSeekOffset) -y -i $hash.InputFile -ss $floatSeekOffset -map ? -t $floatDuration `
+				.\bin\ffmpeg.exe -v quiet -stats -ss $floatHybridSeek -y -i $hash.InputFile -ss $floatSeekOffset -map ? -t $floatDuration `
 				-c:v $strVideoCodec -c:a $strAudioCodec -c:s $strSubCodec -preset:v $strPreset -crf $intCrf -map_chapters -1 $strOutputFile
 			}
 			
