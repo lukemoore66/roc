@@ -4,7 +4,7 @@ A PowerShell script that transcodes / remuxes Matroska files that use ordered ch
 
 ## Getting Started
 
-Download the entire git folder i.e. use the 'Clone or Download' button above, then unzip everything to a folder of your choice and run roc.exe. At the prompt, type roc -help to begin.
+Download the entire git folder i.e. use the 'Clone or Download' button above, then unzip everything to a folder of your choice and run roc.exe. At the prompt, type 'roc -help' to begin.
 
 Example Usage: roc -InputPath 'C:\Path\To\Matroska\Files\'
 
