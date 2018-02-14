@@ -1,9 +1,7 @@
 # roc
-roc - Remove Ordered Chapters From Matroska Files
+roc - Remove Ordered Chapters
 
 Powershell Script
-
-roc - Remove Ordered Chapters
 
 Re-encodes / Remuxes Matroska Files That Use Ordered Chapters Into a Single Matroska File.
 
