@@ -59,17 +59,17 @@ try {
 		Write-Host ('-' * $strMessage.Length)
 		Write-Host $strMessage
 		Write-Host ('-' * $strMessage.Length)
-		
+
 		#show the input file path
 		Write-Host ("Input File: " + $objFile.FullName + "`n")
-		
+
 		#define the output file path and show it
 		$strMkvMergeOutputFile = $strOutputPath + '\' + $objFile.BaseName + '.mkv'
 		Write-Host  ("Output File: " + $strMkvMergeOutputFile + "`n")
-		
-		#Get the chapter info	
+
+		#Get the chapter info
 		[xml]$xmlChapterInfo = .\bin\mkvextract.exe $objFile.FullName chapters -
-		
+
 		#make a list of files with their corresponding SIDs to look up
 		$listSIDFiles=Get-Files $objFile.Directory $false $false
 		$hashSIDFiles = @{}
@@ -79,11 +79,11 @@ try {
 				$hashSIDFiles.Set_Item($jsonFileInfo.Container.Properties.Segment_UID, $objSIDFile.FullName)
 			}
 		}
-		
+
 		#algorithm for making encode instructions
 		#Initialize an array of encode instructions
 		$arrEncInst = @()
-		
+
 		#initialize and index counter to zero
 		$intCount = 0
 		#step through each ChapterAtom
@@ -92,22 +92,22 @@ try {
 			if ($ChapAtom.ChapterSegmentUID) {
 				#get it's reference file
 				$RefFile = $hashSIDFiles.($ChapAtom.ChapterSegmentUID.'#text')
-				
+
 				#if its reference file exists
 				if ($RefFile) {
 					#get current chapters start time
 					$EncStart = ConvertFrom-Sexagesimal $ChapAtom.ChapterTimeStart
-					
+
 					#get current chapter's end time
 					$EncEnd = ConvertFrom-Sexagesimal $ChapAtom.ChapterTimeEnd
-					
+
 					#add start time, end time and file name encode list
 					$arrEncInst = $arrEncInst + [ordered]@{
 						File = $RefFile
 						Start = $EncStart
 						End = $EncEnd
 					}
-					
+
 					#set encode start and end back to null
 					$EncStart = $null
 					$EncEnd = $null
@@ -117,7 +117,7 @@ try {
 			else {
 				#if we are not on the first chapter
 				if ($intCount -ne 0) {
-					#if the previous chapter was ordered				
+					#if the previous chapter was ordered
 					if ($xmlChapterInfo.Chapters.EditionEntry.ChapterAtom[$intCount - 1].ChapterSegmentUID) {
 						#set encode start time to current chapter's start time
 						$EncStart = ConvertFrom-Sexagesimal $ChapAtom.ChapterTimeStart
@@ -128,7 +128,7 @@ try {
 					#set the encode start time to the current chapter's start time
 					$EncStart = ConvertFrom-Sexagesimal $ChapAtom.ChapterTimeStart
 				}
-					
+
 				#if we are not on the last chapter
 				if  ($intCount -ne ($xmlChapterInfo.Chapters.EditionEntry.ChapterAtom.Count - 1)) {
 					#if the next chapter is going to be ordered
@@ -142,7 +142,7 @@ try {
 					#set the encode end time to the end of the current chapter
 					$EncEnd = ConvertFrom-Sexagesimal $ChapAtom.ChapterTimeEnd
 				}
-				
+
 				#if there is a a valid encode start and a valid encode end time
 				if (($EncStart -ne $null) -and ($EncEnd -ne $null)) {
 					#add encode start time and encode end time to encode list
@@ -151,17 +151,17 @@ try {
 						Start = $EncStart
 						End = $EncEnd
 					}
-					
+
 					#set the encode start and encode end times to null
 					$EncStart = $null
 					$EncEnd = $null
 				}
 			}
-			
+
 			#increment the index counter
 			$intCount++
 		}
-		
+
 		#algorithm to fix chapters
 		#initialize and index counter to zero
 		$ExtraTime = 0.0
@@ -172,23 +172,23 @@ try {
 			if ($ChapAtom.ChapterSegmentUID) {
 				#get it's reference file
 				$RefFile = $hashSIDFiles.($ChapAtom.ChapterSegmentUID.'#text')
-				
+
 				#if its reference file exists
 				if ($RefFile) {
 					#get the current chapter's duration
 					$ChapDur = (ConvertFrom-Sexagesimal $ChapAtom.ChapterTimeEnd) - (ConvertFrom-Sexagesimal $ChapAtom.ChapterTimeStart)
-				
+
 					#if were not on the first chapter
 					if ($i -ne 0) {
 						#get the previous chapter's end time
 						$PrevEnd = ConvertFrom-Sexagesimal $xmlChapterInfo.Chapters.EditionEntry.ChapterAtom[$intCount - 1].ChapterTimeEnd
-						
+
 						#add the end time of the previous chapter to the current chapter's start time
 						$ChapAtom.ChapterTimeStart = ConvertTo-Sexagesimal ((ConvertFrom-Sexagesimal $ChapAtom.ChapterTimeStart) + $PrevEnd)
-						
+
 						#add the end time of the previous chapter to the current chapter's end time
 						$ChapAtom.ChapterTimeEnd = ConvertTo-Sexagesimal ((ConvertFrom-Sexagesimal $ChapAtom.ChapterTimeEnd) + $PrevEnd)
-						
+
 						#add this to the total extra time
 						$ExtraTime = $ExtraTime + $ChapDur
 					}
@@ -202,18 +202,18 @@ try {
 				else {
 					#mark the current chapter as disabled
 					$ChapAtom.ChapterFlagEnabled = '0'
-					
+
 					#if it is the not the first chapter
 					if ($intCount -ne 0) {
-						#set current chapter start to the end to the previous chapter's end time
+						#set current chapter start to the previous chapter's end time
 						$ChapAtom.ChapterTimeStart = $xmlChapterInfo.Chapters.EditionEntry.ChapterAtom[$intCount - 1].ChapterTimeEnd
-						
-						#set current chapter end to the end to the previous chapter's end time
+
+						#set current chapter end to the previous chapter's end time
 						$ChapAtom.ChapterTimeEnd = $xmlChapterInfo.Chapters.EditionEntry.ChapterAtom[$intCount - 1].ChapterTimeEnd
 					}
 					#else it is the first chapter
 					else {
-						#set current chapter's end as equal its start, effectively disabling it, as it is zero length from it's start point
+						#set current chapter's end to be equal its start
 						$ChapAtom.ChapterTimeEnd = $ChapAtom.ChapterTimeStart
 					}
 				}
@@ -222,15 +222,15 @@ try {
 			else {
 				#add the total extra time to the current chapter's start time
 				$ChapAtom.ChapterTimeStart = ConvertTo-Sexagesimal ((ConvertFrom-Sexagesimal $ChapAtom.ChapterTimeStart) + $ExtraTime)
-			
+
 				#add the total extra time to the current chapter's end time
 				$ChapAtom.ChapterTimeEnd = ConvertTo-Sexagesimal ((ConvertFrom-Sexagesimal $ChapAtom.ChapterTimeEnd) + $ExtraTime)
 			}
-			
+
 			#increment the index counter
 			$intCount++
 		}
-		
+
 		#clean up the chapters, remove any disabled chapters and remove any SID info
 		$intCount = 0
 		foreach ($ChapAtom in $xmlChapterInfo.Chapters.EditionEntry.ChapterAtom) {
@@ -239,37 +239,37 @@ try {
 				#remove it
 				$ChapAtom.RemoveChild($ChapAtom.ChapterSegmentUID) | Out-Null
 			}
-			
+
 			#if a chapter is disabled
 			if ($ChapAtom.ChapterFlagEnabled -eq '0') {
 				#remove it
 				$ChapAtom.Parent.RemoveChild($ChapAtom) | Out-Null
 			}
 		}
-		
+
 		#set the chapters to not be ordered chapters
 		$xmlChapterInfo.Chapters.EditionEntry.EditionFlagOrdered = '0'
-		
+
 		#define the chapter file output path
 		$strChapterFile = $strTempPath + '\' + (Generate-RandomString) + '.xml'
-		
+
 		#save the chapter file to this output path
 		$xmlChapterInfo.Save("$strChapterFile")
-		
+
 		#encode the video using the encode instructions
 		$floatSeekOffset = 15.0
 		$arrOutputFiles = @()
-		$floatTotalDuration = 
+		$floatTotalDuration =
 		$intTotalChunks = $arrEncInst.Count
-		
+
 		$floatTotalDuration = Get-TotalDuration $arrEncList
-		
+
 		ShowMissingAtoms $xmlChapterInfo
-		
+
 		Write-Host "Encoding...`nPress Ctrl + c to exit.`n"
-				
+
 		Write-Host ("Total Output Duration: " + (ConvertTo-Sexagesimal $floatTotalDuration) + "`n")
-		
+
 		$intCounter = 1
 		$floatProg = 0.0
 		foreach ($Inst in $arrEncInst) {
@@ -278,58 +278,61 @@ try {
 			$floatDuration = $floatEndTime - $floatStartTime
 			$strOutputFile = $strTempPath + '\' + (Generate-RandomString) + '.mkv'
 			$arrOutputFiles = $arrOutputFiles + $strOutputFile
-			
+
 			$strDuration = ConvertTo-Sexagesimal $floatDuration
 			$strStartProg = ConvertTo-Sexagesimal $floatProg
 			$floatProg = $floatProg + $floatDuration
 			$strEndProg = ConvertTo-Sexagesimal $floatProg
-			
+
 			if ($Inst.File -eq $objFile.FullName) {
 				$strSource = "Main File"
 			}
 			else {
 				$strSource = "External File"
 			}
-			
+
 			$floatHybridSeek = $floatStartTime - $floatSeekOffset
 			if ($floatHybridSeek -le 0.0) {
 				$floatStartTime = 0.0
 			}
-			
-			Write-Host ("Processing Chunk $intCounter of $intTotalChunks Duration: $strDuration Output Range: " + `
+
+			Write-Host ("Processing Segment $intCounter of $intTotalChunks Duration: $strDuration Output Range: " + `
 			"$strStartProg - $strEndProg Source: $strSource")
-			
+
 			#avoid seeking when possible, as ffmpeg seems to be buggy sometimes
 			if ($floatStartTime -eq 0.0) {
-				.\bin\ffmpeg.exe -v quiet -stats -y -i $Inst.File -map ? -t $floatDuration -c:v $strVideoCodec -c:a $strAudioCodec -c:s $strSubCodec `
-				-preset:v $strPreset -crf $intCrf -map_chapters -1 $strOutputFile
+				.\bin\ffmpeg.exe -v quiet -stats -y -i $Inst.File -map ? -t $floatDuration `
+				-c:v $strVideoCodec -c:a $strAudioCodec -c:s $strSubCodec `
+				-preset:v $strPreset -crf $intCrf -x264opts stitchable=1 -map_chapters -1 $strOutputFile
 			}
 			#otherwise, if we have to use seeking, seek a bit backwards, and decode that bit until we get to the start point
 			else {
 				.\bin\ffmpeg.exe -v quiet -stats -ss $floatHybridSeek -y -i $Inst.File -ss $floatSeekOffset -map ? -t $floatDuration `
-				-c:v $strVideoCodec -c:a $strAudioCodec -c:s $strSubCodec -preset:v $strPreset -crf $intCrf -map_chapters -1 $strOutputFile
+				-c:v $strVideoCodec -c:a $strAudioCodec -c:s $strSubCodec `
+				-preset:v $strPreset -crf $intCrf -x264opts stitchable=1 -map_chapters -1 $strOutputFile
 			}
-			
+
 			$intCounter++
 		}
-		
+
 		$strMkvMergeOutputFile = $strOutputPath + '\' + $objFile.BaseName + '.mkv'
 
 		#Make an expression string that mkvmerge can run
 		Write-Host "Remuxing Segments. Please Wait..."
-		$strMkvMerge = ".\bin\mkvmerge --output '$strMkvMergeOutputFile' --chapters '$strChapterFile' " + ($arrOutputFiles -join " + ") + ' | Out-Null'
-		
+		$strMkvMerge = ".\bin\mkvmerge --output '$strMkvMergeOutputFile' --chapters '$strChapterFile' " + `
+		($arrOutputFiles -join " + ") + ' | Out-Null'
+
 		#Use mkvmerge to join all of the output files
 		Invoke-Expression $strMkvMerge
-		
+
 		Write-Host "Remuxing Complete.`n"
 
 		Cleanup-Files $arrOutputFiles $strChapterFile
-		
+
 		#Increment the file counter
 		$intFileCounter++
 	}
-		
+
 	Write-Host "Complete."
 }
 catch {
