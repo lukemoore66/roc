@@ -79,252 +79,211 @@ try {
 				$hashSIDFiles.Set_Item($jsonFileInfo.Container.Properties.Segment_UID, $objSIDFile.FullName)
 			}
 		}
-
-		#build a list of encode info
-		$arrEncodeInfo = @()
-		$intCounter = 0
-		foreach ($nodeChapterAtom in $xmlChapterInfo.Chapters.EditionEntry.ChapterAtom) {
-			#first, we need to check if an SID exists for this chapter
-			if ($nodeChapterAtom.ChapterSegmentUID) {
-				#add the needed info to the array of encode info
-				$arrEncodeInfo = $arrEncodeInfo + [ordered]@{
-					InputFile = $hashSIDFiles.($nodeChapterAtom.ChapterSegmentUID.'#text');
-					StartTime = $nodeChapterAtom.ChapterTimeStart;
-					EndTime = $nodeChapterAtom.ChapterTimeEnd;
-					Inserted = $true;
-					Index = $intCounter
-					SID = $nodeChapterAtom.ChapterSegmentUID.'#text'
-				}
-			}
-			#we are dealing with a regular chapter
-			else {
-				#add this info to the array
-				$arrEncodeInfo = $arrEncodeInfo + [ordered]@{
-					InputFile = $objFile.FullName;
-					StartTime = $nodeChapterAtom.ChapterTimeStart;
-					EndTime = $nodeChapterAtom.ChapterTimeEnd;
-					Inserted = $false;
-					Index = $intCounter
-					SID = $nodeChapterAtom.ChapterSegmentUID.'#text'
-				}
-			}
-			$intCounter++
-		}
 		
-		#make a list of valid inserted chapters
-		#mark all invalid chapters as disabled
-		$arrInsertedChapters = @()
-		$arrInvalidChapterAtoms = @()
-		$arrInvalidSIDs = @()
-		$intCounter = 0
-		foreach ($hash in $arrEncodeInfo) {
-			if ($hash.Inserted -eq $true) {
-				if ($hash.InputFile) {
-					$arrInsertedChapters = $arrInsertedChapters + $hash.Index
+		#algorithm for making encode instructions
+		#Initialize an array of encode instructions
+		$arrEncInst = @()
+		
+		#initialize and index counter to zero
+		$intCount = 0
+		#step through each ChapterAtom
+		foreach ($ChapAtom in $xmlChapterInfo.Chapters.EditionEntry.ChapterAtom) {
+			#if the current chapter is ordered
+			if ($ChapAtom.ChapterSegmentUID) {
+				#get it's reference file
+				$RefFile = $hashSIDFiles.($ChapAtom.ChapterSegmentUID.'#text')
+				
+				#if its reference file exists
+				if ($RefFile) {
+					#get current chapters start time
+					$EncStart = ConvertFrom-Sexagesimal $ChapAtom.ChapterTimeStart
+					
+					#get current chapter's end time
+					$EncEnd = ConvertFrom-Sexagesimal $ChapAtom.ChapterTimeEnd
+					
+					#add start time, end time and file name encode list
+					$arrEncInst = $arrEncInst + [ordered]@{
+						File = $RefFile
+						Start = $EncStart
+						End = $EncEnd
+					}
+					
+					#set encode start and end back to null
+					$EncStart = $null
+					$EncEnd = $null
 				}
+			}
+			#else the chapter is not ordered
+			else {
+				#if we are not on the first chapter
+				if ($intCount -ne 0) {
+					#if the previous chapter was ordered				
+					if ($xmlChapterInfo.Chapters.EditionEntry.ChapterAtom[$intCount - 1].ChapterSegmentUID) {
+						#set encode start time to current chapter's start time
+						$EncStart = ConvertFrom-Sexagesimal $ChapAtom.ChapterTimeStart
+					}
+				}
+				#else we are on the first chapter
 				else {
-					$arrInvalidChapterAtoms = $arrInvalidChapterAtoms + $intCounter
-					$arrInvalidSIDs = $arrInvalidSIDs + $hash.SID
+					#set the encode start time to the current chapter's start time
+					$EncStart = ConvertFrom-Sexagesimal $ChapAtom.ChapterTimeStart
 				}
-			}
-			$intCounter++
-		}
-		
-		if ($arrInvalidChapterAtoms.Count -gt 0) {
-			Write-Host "`nInvalid File References Found For:"
-			$intCounter = 0
-			foreach ($intSegment in $arrInvalidChapterAtoms) {
-				Write-Host ("Chapter Atom Index: " + $intSegment + " SID: " + $arrInvalidSIDs[$intCounter])
-				$intCounter++
-			}
-			Write-Host "These Chapter Atoms Will Be Skipped."
-			if ($arrInsertedChapters.Count -eq 0) {
-				Write-Host "No Valid Chapter Atoms Found. Skipping File."
-				continue
-			}
-		}
-		
-		#fix the chapters
-		#we need to add timestamps to all of the chapters after the inserted chapters to fix them
-		$intCounter = 0
-		$floatExtraDuration = 0
-		foreach ($nodeChapterAtom in $xmlChapterInfo.Chapters.EditionEntry.ChapterAtom) {
-			if ($nodeChapterAtom.ChapterSegmentUID) {
-				#make sure it is a valid chapter, mark it as disabled if it is not, and set it's start and end time
-				#to be the same as the end time of the chapter before it, if it is the first chapter, set it all to zero
-				if ($arrInvalidChapterAtoms -contains $intCounter) {
-					if ($intCounter -eq 0) {
-						$nodeChapterAtom.ChapterTimeStart = ConvertTo-Sexagesimal 0.0
-						$nodeChapterAtom.ChapterTimeEnd = ConvertTo-Sexagesimal 0.0
-					}
-					else {
-						$floatPrevChapterEnd = ConvertFrom-Sexagesimal $xmlChapterInfo.Chapters.EditionEntry.ChapterAtom[$intCounter - 1].ChapterTimeEnd
-						$nodeChapterAtom.ChapterTimeStart = ConvertTo-Sexagesimal $floatPrevChapterEnd
-						$nodeChapterAtom.ChapterTimeEnd = ConvertTo-Sexagesimal $floatPrevChapterEnd
-						$nodeChapterAtom.ChapterFlagEnabled = '0'
+					
+				#if we are not on the last chapter
+				if  ($intCount -ne ($xmlChapterInfo.Chapters.EditionEntry.ChapterAtom.Count - 1)) {
+					#if the next chapter is going to be ordered
+					if ($xmlChapterInfo.Chapters.EditionEntry.ChapterAtom[$intCount + 1].ChapterSegmentUID) {
+						#set encode end time to current chapter's end time
+						$EncEnd = ConvertFrom-Sexagesimal $ChapAtom.ChapterTimeEnd
 					}
 				}
-				
-				#add the end time of the previous chapter to this chapter's start and finish
-				if ($intCounter -gt 0) {
-					$floatCurrentChapterStart = ConvertFrom-Sexagesimal $nodeChapterAtom.ChapterTimeStart
-					$floatCurrentChapterEnd = ConvertFrom-Sexagesimal $nodeChapterAtom.ChapterTimeEnd
-					$floatCurrentChapterDuration = $floatCurrentChapterEnd - $floatCurrentChapterStart
-					$floatPrevChapterEnd = ConvertFrom-Sexagesimal $xmlChapterInfo.Chapters.EditionEntry.ChapterAtom[$intCounter - 1].ChapterTimeEnd
-					
-					$nodeChapterAtom.ChapterTimeStart = ConvertTo-Sexagesimal ($floatCurrentChapterStart + $floatPrevChapterEnd)
-					$nodeChapterAtom.ChapterTimeEnd = ConvertTo-Sexagesimal ($floatCurrentChapterEnd + $floatPrevChapterEnd)
+				#else we are on the last chapter
+				else {
+					#set the encode end time to the end of the current chapter
+					$EncEnd = ConvertFrom-Sexagesimal $ChapAtom.ChapterTimeEnd
 				}
 				
-				$floatExtraDuration = $floatExtraDuration + $floatCurrentChapterDuration
-			}
-			else {
-				$floatCurrentChapterStart = ConvertFrom-Sexagesimal $nodeChapterAtom.ChapterTimeStart
-				$floatCurrentChapterEnd = ConvertFrom-Sexagesimal $nodeChapterAtom.ChapterTimeEnd
+				#if there is a a valid encode start and a valid encode end time
+				if (($EncStart -ne $null) -and ($EncEnd -ne $null)) {
+					#add encode start time and encode end time to encode list
+					$arrEncInst = $arrEncInst + [ordered]@{
+						File = $objFile.FullName
+						Start = $EncStart
+						End = $EncEnd
+					}
 					
-				if ($intCounter -gt 0) {
-					#get the previous chapters end time now it has been updated properly
-					$floatCurrentChapterStart = ConvertFrom-Sexagesimal $nodeChapterAtom.ChapterTimeStart
-					$floatPrevChapterEnd = ConvertFrom-Sexagesimal $xmlChapterInfo.Chapters.EditionEntry.ChapterAtom[$intCounter - 1].ChapterTimeEnd
-
-					$nodeChapterAtom.ChapterTimeStart = ConvertTo-Sexagesimal ($floatCurrentChapterStart + $floatExtraDuration)
-					$nodeChapterAtom.ChapterTimeEnd = ConvertTo-Sexagesimal ($floatCurrentChapterEnd + $floatExtraDuration)
+					#set the encode start and encode end times to null
+					$EncStart = $null
+					$EncEnd = $null
 				}
 			}
 			
-			$intCounter++
+			#increment the index counter
+			$intCount++
 		}
 		
-		#Finally, set the chapters to not be ordered chapters
+		#algorithm to fix chapters
+		#initialize and index counter to zero
+		$ExtraTime = 0.0
+		$intCount = 0
+		#step through each ChapterAtom
+		foreach ($ChapAtom in $xmlChapterInfo.Chapters.EditionEntry.ChapterAtom) {
+			#if the current chapter is ordered
+			if ($ChapAtom.ChapterSegmentUID) {
+				#get it's reference file
+				$RefFile = $hashSIDFiles.($ChapAtom.ChapterSegmentUID.'#text')
+				
+				#if its reference file exists
+				if ($RefFile) {
+					#get the current chapter's duration
+					$ChapDur = (ConvertFrom-Sexagesimal $ChapAtom.ChapterTimeEnd) - (ConvertFrom-Sexagesimal $ChapAtom.ChapterTimeStart)
+				
+					#if were not on the first chapter
+					if ($i -ne 0) {
+						#get the previous chapter's end time
+						$PrevEnd = ConvertFrom-Sexagesimal $xmlChapterInfo.Chapters.EditionEntry.ChapterAtom[$intCount - 1].ChapterTimeEnd
+						
+						#add the end time of the previous chapter to the current chapter's start time
+						$ChapAtom.ChapterTimeStart = ConvertTo-Sexagesimal ((ConvertFrom-Sexagesimal $ChapAtom.ChapterTimeStart) + $PrevEnd)
+						
+						#add the end time of the previous chapter to the current chapter's end time
+						$ChapAtom.ChapterTimeEnd = ConvertTo-Sexagesimal ((ConvertFrom-Sexagesimal $ChapAtom.ChapterTimeEnd) + $PrevEnd)
+						
+						#add this to the total extra time
+						$ExtraTime = $ExtraTime + $ChapDur
+					}
+					#else, we are on the first chapter
+					else {
+						#add the current chapter's duration to the total extra time
+						$ExtraTime = $ExtraTime + $ChapDur
+					}
+				}
+				#else its reference file does not exist
+				else {
+					#mark the current chapter as disabled
+					$ChapAtom.ChapterFlagEnabled = '0'
+					
+					#if it is the not the first chapter
+					if ($intCount -ne 0) {
+						#set current chapter start to the end to the previous chapter's end time
+						$ChapAtom.ChapterTimeStart = $xmlChapterInfo.Chapters.EditionEntry.ChapterAtom[$intCount - 1].ChapterTimeEnd
+						
+						#set current chapter end to the end to the previous chapter's end time
+						$ChapAtom.ChapterTimeEnd = $xmlChapterInfo.Chapters.EditionEntry.ChapterAtom[$intCount - 1].ChapterTimeEnd
+					}
+					#else it is the first chapter
+					else {
+						#set current chapter's end as equal its start, effectively disabling it, as it is zero length from it's start point
+						$ChapAtom.ChapterTimeEnd = $ChapAtom.ChapterTimeStart
+					}
+				}
+			}
+			#else the chapter is not ordered
+			else {
+				#add the total extra time to the current chapter's start time
+				$ChapAtom.ChapterTimeStart = ConvertTo-Sexagesimal ((ConvertFrom-Sexagesimal $ChapAtom.ChapterTimeStart) + $ExtraTime)
+			
+				#add the total extra time to the current chapter's end time
+				$ChapAtom.ChapterTimeEnd = ConvertTo-Sexagesimal ((ConvertFrom-Sexagesimal $ChapAtom.ChapterTimeEnd) + $ExtraTime)
+			}
+			
+			#increment the index counter
+			$intCount++
+		}
+		
+		#set the chapters to not be ordered chapters
 		$xmlChapterInfo.Chapters.EditionEntry.EditionFlagOrdered = '0'
 		
+		#define the chapter file output path
 		$strChapterFile = $strTempPath + '\' + (Generate-RandomString) + '.xml'
-		$xmlChapterInfo.Save("$strChapterFile")
 		
-		#make an array of encode instructions from the array of inserted chapters
-		$arrEncodeInstructions = @()
-		$intCounter = 0
-		foreach ($intChapter in $arrInsertedChapters) {
-			#start cases
-			if ($intCounter -eq 0) {
-				#Special Case: handle the first chapter being an inserted file
-				if ($intChapter -eq 0) {
-					#add encode instructions for the inserted file only
-					$arrEncodeInstructions = $arrEncodeInstructions + [ordered]@{
-						InputFile = $arrEncodeInfo[$intChapter].InputFile;
-						StartTime = $arrEncodeInfo[$intChapter].StartTime;
-						EndTime = $arrEncodeInfo[$intChapter].EndTime
-					}
-				}
-				else {
-					#add the encode instructions for the original file
-					$arrEncodeInstructions = $arrEncodeInstructions + [ordered]@{
-						InputFile = $objFile.FullName;
-						StartTime = $arrEncodeInfo[$intCounter].StartTime;
-						EndTime = $arrEncodeInfo[$intChapter - 1].EndTime
-					}
-					
-					#add the encode instructions for the inserted file
-					$arrEncodeInstructions = $arrEncodeInstructions + [ordered]@{
-						InputFile = $arrEncodeInfo[$intChapter].InputFile;
-						StartTime = $arrEncodeInfo[$intChapter].StartTime;
-						EndTime = $arrEncodeInfo[$intChapter].EndTime
-					}
-				}
-			}
-			
-			#middle case
-			if (($intCounter -lt ($arrInsertedChapters.Count - 1)) -and ($intCounter -gt 0)) {
-				#add the encode instructions for the original file
-				$arrEncodeInstructions = $arrEncodeInstructions + [ordered]@{
-					InputFile = $objFile.FullName;
-					StartTime = $arrEncodeInfo[($arrInsertedChapters[$intCounter - 1] + 1)].StartTime;
-					EndTime = $arrEncodeInfo[$intChapter - 1].EndTime
-				}
-				
-				#add the encode instructions for the inserted file
-				$arrEncodeInstructions = $arrEncodeInstructions + [ordered]@{
-					InputFile = $arrEncodeInfo[$intChapter].InputFile;
-					StartTime = $arrEncodeInfo[$intChapter].StartTime;
-					EndTime = $arrEncodeInfo[$intChapter].EndTime
-				}
-			}
-			
-			#end cases
-			if ($intCounter -eq ($arrInsertedChapters.Count - 1)) {
-				#only use the start of the last inserted chapter if it is actually there
-				if ($arrInsertedChapters.Count -ne 1) {
-					#add the encode instructions for the original file
-					$arrEncodeInstructions = $arrEncodeInstructions + [ordered]@{
-						InputFile = $objFile.FullName;
-						StartTime = $arrEncodeInfo[($arrInsertedChapters[$intCounter - 1] + 1)].StartTime;
-						EndTime = $arrEncodeInfo[$intChapter - 1].EndTime
-					}
-					
-					#add the encode instructions for the inserted file
-					$arrEncodeInstructions = $arrEncodeInstructions + [ordered]@{
-						InputFile = $arrEncodeInfo[$intChapter].InputFile;
-						StartTime = $arrEncodeInfo[$intChapter].StartTime;
-						EndTime = $arrEncodeInfo[$intChapter].EndTime
-					}
-				}
-				
-				#handle any extra video at the end
-				if ($intChapter -lt ($arrEncodeInfo.Count - 1)) {
-					#add the encode instructions for the original file only
-					$arrEncodeInstructions = $arrEncodeInstructions + [ordered]@{
-						InputFile = $objFile.FullName;
-						StartTime = $arrEncodeInfo[($intChapter + 1)].StartTime;
-						EndTime = $arrEncodeInfo[-1].EndTime
-					}
-				}
-			}
-			
-			$intCounter++
-		}
+		#save the chapter file to this output path
+		$xmlChapterInfo.Save("$strChapterFile")
 		
 		#encode the video using the encode instructions
 		$floatSeekOffset = 15.0
 		$arrOutputFiles = @()
-		$floatTotalDuration = ConvertFrom-Sexagesimal $xmlChapterInfo.Chapters.EditionEntry.ChapterAtom[-1].ChapterTimeEnd
-		$intTotalChunks = $arrEncodeInstructions.Count
+		$floatTotalDuration = 
+		$intTotalChunks = $arrEncInst.Count
+		
+		#get the total output duration for display
+		$floatTotalDuration = 0.0
+		foreach ($Inst in $arrEncInst) {
+			$floatTotalDuration = $floatTotalDuration + ($Inst.end - $Inst.start)
+		}
 		
 		Write-Host ("Total Output Duration: " + (ConvertTo-Sexagesimal $floatTotalDuration))
 		
 		$intCounter = 1
-		foreach ($hash in $arrEncodeInstructions) {
-			$floatStartTime = ConvertFrom-Sexagesimal $hash.StartTime
-			$floatEndTime = ConvertFrom-Sexagesimal $hash.EndTime
+		$floatProg = 0.0
+		foreach ($Inst in $arrEncInst) {
+			$floatStartTime = $Inst.Start
+			$floatEndTime = $Inst.End
 			$floatDuration = $floatEndTime - $floatStartTime
 			$strOutputFile = $strTempPath + '\' + (Generate-RandomString) + '.mkv'
 			$arrOutputFiles = $arrOutputFiles + $strOutputFile
 			
 			$strDuration = ConvertTo-Sexagesimal $floatDuration
-			$strStartTime = ConvertTo-Sexagesimal $floatStartTime
-			$strEndTime = ConvertTo-Sexagesimal $floatEndTime
+			$strStartProg = ConvertTo-Sexagesimal $floatProg
+			$floatProg = $floatProg + $floatDuration
+			$strEndProg = ConvertTo-Sexagesimal $floatProg
 			
-			$floatHybridSeek = ($floatStartTime - $floatSeekOffset)
-			if ($floatHybridSeek -le 0) {
-				$floatStartTime = 0.000
+			
+			$floatHybridSeek = $floatStartTime - $floatSeekOffset
+			if ($floatHybridSeek -le 0.0) {
+				$floatStartTime = 0.0
 			}
 			
-			if($hash.InputFile -ne $objFIle.FullName ) {
-				$strFile = "External File"
-			}
-			else {
-				$strFile = "Main File"
-			}
+			Write-Host "Processing Chunk $intCounter of $intTotalChunks Duration: $strDuration Output Range: $strStartProg - $strEndProg"
 			
-			Write-Host "Processing Chunk $intCounter of $intTotalChunks Duration: $strDuration Range: $strStartTime - $strEndTime Source: $strFile"
-			
-			#avoid seeking when possible, as it seems to be buggy sometimes
-			if ($floatStartTime -eq 0.000) {
-				.\bin\ffmpeg.exe -v quiet -stats -y -i $hash.InputFile -map ? -t $floatDuration -c:v $strVideoCodec -c:a $strAudioCodec -c:s $strSubCodec `
+			#avoid seeking when possible, as ffmpeg seems to be buggy sometimes
+			if ($floatStartTime -eq 0.0) {
+				.\bin\ffmpeg.exe -v quiet -stats -y -i $Inst.File -map ? -t $floatDuration -c:v $strVideoCodec -c:a $strAudioCodec -c:s $strSubCodec `
 				-preset:v $strPreset -crf $intCrf -map_chapters -1 $strOutputFile
 			}
-			#otherwise, we have to use seeking, seek a bit backwards, and decode that bit until we get to the start point
+			#otherwise, if we have to use seeking, seek a bit backwards, and decode that bit until we get to the start point
 			else {
-				.\bin\ffmpeg.exe -v quiet -stats -ss $floatHybridSeek -y -i $hash.InputFile -ss $floatSeekOffset -map ? -t $floatDuration `
+				.\bin\ffmpeg.exe -v quiet -stats -ss $floatHybridSeek -y -i $Inst.File -ss $floatSeekOffset -map ? -t $floatDuration `
 				-c:v $strVideoCodec -c:a $strAudioCodec -c:s $strSubCodec -preset:v $strPreset -crf $intCrf -map_chapters -1 $strOutputFile
 			}
 			
@@ -344,9 +303,8 @@ try {
 		
 		#Increment the file counter
 		$intFileCounter++
-		
 	}
-	
+		
 	Write-Host "Complete."
 }
 catch {
