@@ -231,6 +231,22 @@ try {
 			$intCount++
 		}
 		
+		#clean up the chapters, remove any disabled chapters and remove any SID info
+		$intCount = 0
+		foreach ($ChapAtom in $xmlChapterInfo.Chapters.EditionEntry.ChapterAtom) {
+			#if an sid exists
+			if ($ChapAtom.ChapterSegmentUID) {
+				#remove it
+				$ChapAtom.RemoveChild($ChapAtom.ChapterSegmentUID) | Out-Null
+			}
+			
+			#if a chapter is disabled
+			if ($ChapAtom.ChapterFlagEnabled -eq '0') {
+				#remove it
+				$ChapAtom.Parent.RemoveChild($ChapAtom) | Out-Null
+			}
+		}
+		
 		#set the chapters to not be ordered chapters
 		$xmlChapterInfo.Chapters.EditionEntry.EditionFlagOrdered = '0'
 		
