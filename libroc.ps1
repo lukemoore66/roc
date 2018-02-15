@@ -1,3 +1,38 @@
+function Get-TotalDuration ($arrEncList) {
+	#get the total output duration for display
+	$floatTotalDuration = 0.0
+	foreach ($Inst in $arrEncInst) {
+		$floatTotalDuration = $floatTotalDuration + ($Inst.end - $Inst.start)
+	}
+	
+	return $floatTotalDuration
+}
+
+function ShowMissingAtoms ($xmlChapterInfo) {
+	#get missing chapter atoms for display
+	$arrMissAtoms = @()
+	$intCount = 0
+	foreach ($ChapAtom in $xmlChapterInfo.Chapters.EditionEntry.ChapterAtom) {
+		if ($chapAtom.ChapterSegmentUID) {
+			if ($chapAtom.ChapterFlagEnabled -eq '0') {
+				$arrMissAtoms = $arrMissAtoms + $intCount
+			}
+		}
+		$intCount++
+	}
+	
+	#Show Missing Atoms Warning
+	if ($arrMissAtoms.Count -ne 0) {
+		if ($arrMissAtoms.Count -gt 1) {
+		$strChapterAtoms = ($arrMissAtoms[0..($arrMissAtoms.Count - 2)] -join ', ') + ' and ' +  $arrMissAtoms[-1]
+		Write-Host "Warning: Missing Chapter Atoms $strChapterAtoms`nThese Will Automatically Be Skipped.`n"
+		}
+		else {
+			Write-Host ("Warning: Missing Chapter Atom " + $arrMissAtoms[0] + "`nIt Will Automatically Be Skipped.`n")
+		}
+	}
+}
+
 function Show-Help ($boolHelp) {
 	if ($boolHelp) {
 	Write-Host `

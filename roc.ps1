@@ -61,11 +61,11 @@ try {
 		Write-Host ('-' * $strMessage.Length)
 		
 		#show the input file path
-		Write-Host ("Input File: " + $objFile.FullName)
+		Write-Host ("Input File: " + $objFile.FullName + "`n")
 		
 		#define the output file path and show it
 		$strMkvMergeOutputFile = $strOutputPath + '\' + $objFile.BaseName + '.mkv'
-		Write-Host  ("Output File: " + $strMkvMergeOutputFile)
+		Write-Host  ("Output File: " + $strMkvMergeOutputFile + "`n")
 		
 		#Get the chapter info	
 		[xml]$xmlChapterInfo = .\bin\mkvextract.exe $objFile.FullName chapters -
@@ -246,13 +246,13 @@ try {
 		$floatTotalDuration = 
 		$intTotalChunks = $arrEncInst.Count
 		
-		#get the total output duration for display
-		$floatTotalDuration = 0.0
-		foreach ($Inst in $arrEncInst) {
-			$floatTotalDuration = $floatTotalDuration + ($Inst.end - $Inst.start)
-		}
+		$floatTotalDuration = Get-TotalDuration $arrEncList
 		
-		Write-Host ("Total Output Duration: " + (ConvertTo-Sexagesimal $floatTotalDuration))
+		ShowMissingAtoms $xmlChapterInfo
+		
+		Write-Host "Encoding...`nPress Ctrl + c to exit.`n"
+				
+		Write-Host ("Total Output Duration: " + (ConvertTo-Sexagesimal $floatTotalDuration) + "`n")
 		
 		$intCounter = 1
 		$floatProg = 0.0
@@ -268,13 +268,20 @@ try {
 			$floatProg = $floatProg + $floatDuration
 			$strEndProg = ConvertTo-Sexagesimal $floatProg
 			
+			if ($Inst.File -eq $objFile.FullName) {
+				$strSource = "Main File"
+			}
+			else {
+				$strSource = "External File"
+			}
 			
 			$floatHybridSeek = $floatStartTime - $floatSeekOffset
 			if ($floatHybridSeek -le 0.0) {
 				$floatStartTime = 0.0
 			}
 			
-			Write-Host "Processing Chunk $intCounter of $intTotalChunks Duration: $strDuration Output Range: $strStartProg - $strEndProg"
+			Write-Host ("Processing Chunk $intCounter of $intTotalChunks Duration: $strDuration Output Range: " + `
+			"$strStartProg - $strEndProg Source: $strSource")
 			
 			#avoid seeking when possible, as ffmpeg seems to be buggy sometimes
 			if ($floatStartTime -eq 0.0) {
@@ -295,9 +302,11 @@ try {
 		#Make an expression string that mkvmerge can run
 		Write-Host "Remuxing Segments. Please Wait..."
 		$strMkvMerge = ".\bin\mkvmerge --output '$strMkvMergeOutputFile' --chapters '$strChapterFile' " + ($arrOutputFiles -join " + ") + ' | Out-Null'
-	
+		
 		#Use mkvmerge to join all of the output files
 		Invoke-Expression $strMkvMerge
+		
+		Write-Host "Remuxing Complete.`n"
 
 		Cleanup-Files $arrOutputFiles $strChapterFile
 		
