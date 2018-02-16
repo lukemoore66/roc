@@ -96,7 +96,7 @@ function Get-EncodeCommands ($xmlChapterInfo, $hashSegmentFiles) {
 			$floatEncEnd = ConvertFrom-Sexagesimal $nodeChapAtom.ChapterTimeEnd
 
 			#add start time, end time and file name encode list
-			$arrEncCmds = $arrEncCmds + @{
+			$arrEncCmds = $arrEncCmds + [ordered]@{
 				File = $hashSegmentFiles.($nodeChapAtom.ChapterSegmentUID.'#text')
 				Start = $floatEncStart
 				End = $floatEncEnd
@@ -139,7 +139,7 @@ function Get-EncodeCommands ($xmlChapterInfo, $hashSegmentFiles) {
 			#if there is a a valid encode start and a valid encode end time
 			if (($floatEncStart -ne $null) -and ($floatEncEnd -ne $null)) {
 				#add encode start time and encode end time to encode list
-				$arrEncCmds = $arrEncCmds + @{
+				$arrEncCmds = $arrEncCmds + [ordered]@{
 					File = $objFile.FullName
 					Start = $floatEncStart
 					End = $floatEncEnd
@@ -212,7 +212,7 @@ function Get-OutputFiles ($arrEncCmds, $strTempPath) {
 function Generate-FileSegmentHash ($objFile) {
 	#make a hash table of matroska files referenced by their corresponding SIDs
 	$listSegmentFiles=Get-Files $objFile.Directory $false $false
-	$hashSegmentFiles = @{}
+	$hashSegmentFiles = [ordered]@{}
 	foreach ($objSegmentFile in $listSegmentFiles) {
 		if ($objSegmentFile.Extension -eq '.mkv') {
 			$jsonFileInfo = .\bin\mkvmerge -J $objSegmentFile.FullName | ConvertFrom-Json
@@ -395,7 +395,7 @@ function Set-Codecs {
 		Write-Host -ForegroundColor Yellow "Warning: Copy Mode Enabled. This Will Probably Cause Playback Problems."
 	}
 	
-	$hashCodecs = @{
+	$hashCodecs = [ordered]@{
 		Video = $Video
 		Audio = $Audio
 		Sub = $Sub

@@ -61,6 +61,12 @@ try {
 
 		#Get the chapter info
 		[xml]$xmlChapterInfo = .\bin\mkvextract.exe $objFile.FullName chapters -
+		
+		#If the file has no chapters, skip it
+		if (!$xmlChapterInfo) {
+			Write-Host "No Chapter Information Found.`nSkipping File..."
+			continue
+		}
 
 		#get the default chapter edition entry
 		$xmlChapterInfo = Get-DefaultEdition $xmlChapterInfo
@@ -73,6 +79,12 @@ try {
 
 		#make an array of hashes containing encode commands for ffmpeg
 		$arrEncCmds = Get-EncodeCommands $xmlChapterInfo $hashSegmentFiles
+		
+		#If the file only has a single encode command, it's not segmented, skip it
+		if ($arrEncCmds.Length -eq 1) {
+			Write-Host "No External Segments Found.`nSkipping File..."
+			continue
+		}
 
 		#fix the chapter entries now the encode commands have been generated
 		$xmlChapterInfo = Fix-Chapters $xmlChapterInfo
