@@ -23,7 +23,7 @@ Don't forget the quotation marks around file and folder paths, they are needed f
 
 ### Prerequisites
 
-PowerShell Version 3 or higher is required. Windows 8 and 10 have it installed by default. You may have to download the latest [Windows Management Framework](https://www.microsoft.com/en-us/download/details.aspx?id=54616) (which includes PowerShell) manually if you are running an older version of Windows.
+PowerShell 3.0 or higher is required. Windows 8 and 10 have it installed by default. You may have to download the latest [Windows Management Framework](https://www.microsoft.com/en-us/download/details.aspx?id=54616) (which includes PowerShell) manually if you are running an older version of Windows. This script will only run on Windows.
 
 This script uses large temporary files when running, therefore, it is not recommended to run it off an SSD. You can manually specify the temp folder it uses with the -TempPath option if needed.
 
