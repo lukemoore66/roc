@@ -51,11 +51,6 @@ function Encode-Segments ($arrEncCmds, $hashCodecs, $arrOutputFiles) {
 	return $arrOutputFiles
 }
 
-function Handle-Errors ($objException, $intLineNumber, $strMessage, $boolRocSession) {
-	#Show The Error
-	Write-Host -ForegroundColor Yellow "Error: Caught Exception At Line $intLineNumber`:`n$strMessage"
-}
-
 function Merge-Segments ($arrOutputFiles, $strMkvMergeOutputFile, $strChapterFile) {
 	#Make an expression string that mkvmerge can run
 	Write-Host "Remuxing Segments. Please Wait..."

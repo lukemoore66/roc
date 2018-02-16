@@ -61,13 +61,13 @@ try {
 
 		#Get the chapter info
 		[xml]$xmlChapterInfo = .\bin\mkvextract.exe $objFile.FullName chapters -
-		
+
 		#get the default chapter edition entry
 		$xmlChapterInfo = Get-DefaultEdition $xmlChapterInfo
 
 		#make a hash table referencing external segment files by their segment id
 		$hashSegmentFiles = Generate-FileSegmentHash $objFile
-		
+
 		#remove any invalid chapters
 		$xmlChapterInfo = Remove-InvalidChapters $xmlChapterInfo $hashSegmentFiles
 
@@ -86,9 +86,10 @@ try {
 		#show the total output duration
 		$floatTotalDuration = Get-TotalDuration $arrEncCmds
 		Write-Host ("Total Output Duration: " + (ConvertTo-Sexagesimal $floatTotalDuration) + "`n")
-		
+
 		#generate a list of random file names for output files
-		(1..($arrEncCmds.Count)) | % {[array]$arrOutputFiles += "$strTempPath\" + (Generate-RandomString) + '.mkv'}
+		(1..($arrEncCmds.Count)) | % {[array]$arrOutputFiles += "$strTempPath\" + `
+		(Generate-RandomString) + '.mkv'}
 
 		#run the encode instructions, return an array of file for mkvmerge to process
 		Encode-Segments $arrEncCmds $hashCodecs $arrOutputFiles
@@ -110,21 +111,23 @@ try {
 }
 catch {
 	#show error messages
-	Handle-Errors $_.Exception  $_.InvocationInfo.ScriptLineNumber $objException.Message $RocSession
+	Write-Host -ForegroundColor Yellow ("Error: Caught Exception At Line " + `
+	$_.InvocationInfo.ScriptLineNumber + ":`n" + $_.Exception.Message)
+
 	#tidy up temp files
 	Cleanup-Files $arrOutputFiles $strChapterFile
-	
+
 	#set the window title back to normal if needed
 	Set-WindowTitle $strInitialWinTitle $RocSession
-	
+
 	Write-Host ''
 }
 finally {
 	#tidy up temp files
 	Cleanup-Files $arrOutputFiles $strChapterFile
-	
+
 	#set the window title back to normal if needed
 	Set-WindowTitle $strInitialWinTitle $RocSession
-	
+
 	Write-Host ''
 }
