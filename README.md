@@ -11,7 +11,7 @@ To begin, type:
 ```
 roc -Help
 ```
-and press enter.
+and press Enter.
 
 
 Typical usage looks like this:
