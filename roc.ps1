@@ -88,13 +88,12 @@ try {
 		Write-Host ("Total Output Duration: " + (ConvertTo-Sexagesimal $floatTotalDuration) + "`n")
 
 		#generate a list of random file names for output files
-		(1..($arrEncCmds.Count)) | % {[array]$arrOutputFiles += "$strTempPath\" + `
-		(Generate-RandomString) + '.mkv'}
+		$arrOutputFiles = Get-OutputFiles $arrEncCmds $strTempPath
 
-		#run the encode instructions, return an array of file for mkvmerge to process
+		#use ffmpeg to run the encode instructions
 		Encode-Segments $arrEncCmds $hashCodecs $arrOutputFiles
 
-		#set the output file name for mkv merge
+		#set the output file name for mkvmerge
 		$strMkvMergeOutputFile = $strOutputPath + '\' + $objFile.BaseName + '.mkv'
 
 		#merge the segments with mkvmerge
@@ -107,7 +106,7 @@ try {
 		$intFileCounter++
 	}
 
-	Write-Host "Complete."
+	Write-Host "Script Complete."
 }
 catch {
 	#show error messages

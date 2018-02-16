@@ -53,14 +53,14 @@ function Encode-Segments ($arrEncCmds, $hashCodecs, $arrOutputFiles) {
 
 function Merge-Segments ($arrOutputFiles, $strMkvMergeOutputFile, $strChapterFile) {
 	#Make an expression string that mkvmerge can run
-	Write-Host "Remuxing Segments. Please Wait..."
+	Write-Host "Appending Segments. Please Wait..."
 	$strMkvMerge = ".\bin\mkvmerge --output '$strMkvMergeOutputFile' --chapters '$strChapterFile' " + `
 	($arrOutputFiles -join " + ") + ' | Out-Null'
 
 	#Use mkvmerge to join all of the output files
 	Invoke-Expression $strMkvMerge
 
-	Write-Host "Remuxing Complete.`n"
+	Write-Host "Processing Complete.`n"
 }
 
 function Show-Version ($SetupOnly, $RocSession, $strVersion) {
@@ -191,6 +191,22 @@ function Remove-InvalidChapters ($xmlChapterInfo, $hashSegmentFiles) {
 	}
 	
 	return $xmlChapterInfo
+}
+
+function Get-OutputFiles ($arrEncCmds, $strTempPath) {
+	#initialize an array to store random output file names in
+	$arrOutputFiles = @()
+	
+	#for the number of encode commands
+	foreach ($hashCmd in $arrEncCmds) {
+		#generate a random output file path
+		$strOutputPath = "$strTempPath\" + (Generate-RandomString) + '.mkv'
+		
+		#add this path to the output file array
+		$arrOutputFiles = $arrOutputFiles + $strOutputPath
+	}
+	
+	return $arrOutputFiles
 }
 
 function Generate-FileSegmentHash ($objFile) {
