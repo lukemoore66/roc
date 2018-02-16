@@ -1,36 +1,340 @@
-function Get-TotalDuration ($arrEncList) {
-	#get the total output duration for display
-	$floatTotalDuration = 0.0
-	foreach ($Inst in $arrEncInst) {
-		$floatTotalDuration = $floatTotalDuration + ($Inst.end - $Inst.start)
+function Encode-Segments ($arrEncCmds, $hashCodecs, $arrOutputFiles) {
+	Write-Host "Encoding...`nPress Ctrl + c to exit.`n"
+	
+	$floatSeekOffset = 15.0
+	$intTotalChunks = $arrEncCmds.Count
+	
+	$intCounter = 1
+	$floatProg = 0.0
+	foreach ($hashCmd in $arrEncCmds) {
+		$floatStartTime = $hashCmd.Start
+		$floatEndTime = $hashCmd.End
+		$floatDuration = $floatEndTime - $floatStartTime
+		$strOutputFile = $arrOutputFiles[$intCounter - 1]
+
+		$strDuration = ConvertTo-Sexagesimal $floatDuration
+		$strStartProg = ConvertTo-Sexagesimal $floatProg
+		$floatProg = $floatProg + $floatDuration
+		$strEndProg = ConvertTo-Sexagesimal $floatProg
+
+		if ($hashCmd.File -eq $objFile.FullName) {
+			$strSource = "Main File"
+		}
+		else {
+			$strSource = "External File"
+		}
+
+		$floatHybridSeek = $floatStartTime - $floatSeekOffset
+		if ($floatHybridSeek -le 0.0) {
+			$floatStartTime = 0.0
+		}
+
+		Write-Host ("Processing Segment $intCounter of $intTotalChunks Duration: $strDuration Output Range: " + `
+		"$strStartProg - $strEndProg Source: $strSource")
+
+		#avoid seeking when possible, as ffmpeg seems to be buggy sometimes
+		if ($floatStartTime -eq 0.0) {
+			.\bin\ffmpeg.exe -v quiet -stats -y -i $hashCmd.File -map ? -t $floatDuration `
+			-c:v $hashCodecs.Video -c:a $hashCodecs.Audio -c:s $hashCodecs.Sub `
+			-preset:v $strPreset -crf $intCrf -x264opts stitchable=1 -map_chapters -1 $strOutputFile
+		}
+		#otherwise, if we have to use seeking, seek a bit backwards, and decode that bit until we get to the start point
+		else {
+			.\bin\ffmpeg.exe -v quiet -stats -ss $floatHybridSeek -y -i $hashCmd.File -ss $floatSeekOffset -map ? -t $floatDuration `
+			-c:v $hashCodecs.Video -c:a $hashCodecs.Audio -c:s $hashCodecs.Sub `
+			-preset:v $strPreset -crf $intCrf -x264opts stitchable=1 -map_chapters -1 $strOutputFile
+		}
+
+		$intCounter++
 	}
 	
-	return $floatTotalDuration
+	return $arrOutputFiles
 }
 
-function ShowMissingAtoms ($xmlChapterInfo) {
-	#get missing chapter atoms for display
-	$arrMissAtoms = @()
+function Handle-Errors ($objException, $intLineNumber, $strMessage, $boolRocSession) {
+	#Show The Error
+	Write-Host -ForegroundColor Yellow "Error: Caught Exception At Line $intLineNumber`:`n$strMessage"
+}
+
+function Merge-Segments ($arrOutputFiles, $strMkvMergeOutputFile, $strChapterFile) {
+	#Make an expression string that mkvmerge can run
+	Write-Host "Remuxing Segments. Please Wait..."
+	$strMkvMerge = ".\bin\mkvmerge --output '$strMkvMergeOutputFile' --chapters '$strChapterFile' " + `
+	($arrOutputFiles -join " + ") + ' | Out-Null'
+
+	#Use mkvmerge to join all of the output files
+	Invoke-Expression $strMkvMerge
+
+	Write-Host "Remuxing Complete.`n"
+}
+
+function Show-Version ($SetupOnly, $RocSession, $strVersion) {
+	if ($SetupOnly) {
+	Set-Variable -Name RocSession -Value $true -Scope 2
+	
+	Write-Host "(roc) - Remove Ordered Chapters $strVersion By d3sim8.`nType 'roc -Help' And Press Enter To Begin.`n"
+	
+	exit
+	}
+	else {
+		if (!$RocSession) {
+			Write-Host "(roc) - Remove Ordered Chapters $strVersion 2018 By d3sim8.`n"
+		}
+	}
+}
+
+function Get-EncodeCommands ($xmlChapterInfo, $hashSegmentFiles) {
+	#make an array of encode commands for ffmpeg to process
+	#Initialize an array of encode commands
+	$arrEncCmds = @()
+
+	#initialize an index counter to zero
 	$intCount = 0
-	foreach ($ChapAtom in $xmlChapterInfo.Chapters.EditionEntry.ChapterAtom) {
-		if ($chapAtom.ChapterSegmentUID) {
-			if ($chapAtom.ChapterFlagEnabled -eq '0') {
-				$arrMissAtoms = $arrMissAtoms + $intCount
+	#step through each ChapterAtom
+	foreach ($nodeChapAtom in $xmlChapterInfo.Chapters.EditionEntry.ChapterAtom) {
+		#if the current chapter references a segment
+		if ($nodeChapAtom.ChapterSegmentUID) {
+			#get current chapters start time
+			$floatEncStart = ConvertFrom-Sexagesimal $nodeChapAtom.ChapterTimeStart
+
+			#get current chapter's end time
+			$floatEncEnd = ConvertFrom-Sexagesimal $nodeChapAtom.ChapterTimeEnd
+
+			#add start time, end time and file name encode list
+			$arrEncCmds = $arrEncCmds + @{
+				File = $hashSegmentFiles.($nodeChapAtom.ChapterSegmentUID.'#text')
+				Start = $floatEncStart
+				End = $floatEncEnd
+			}
+
+			#set encode start and end back to null
+			$floatEncStart = $null
+			$floatEncEnd = $null
+		}
+		#else the chapter is not ordered
+		else {
+			#if we are not on the first chapter
+			if ($intCount -ne 0) {
+				#if the previous chapter was ordered
+				if ($xmlChapterInfo.Chapters.EditionEntry.ChapterAtom[$intCount - 1].ChapterSegmentUID) {
+					#set encode start time to current chapter's start time
+					$floatEncStart = ConvertFrom-Sexagesimal $nodeChapAtom.ChapterTimeStart
+				}
+			}
+			#else we are on the first chapter
+			else {
+				#set the encode start time to the current chapter's start time
+				$floatEncStart = ConvertFrom-Sexagesimal $nodeChapAtom.ChapterTimeStart
+			}
+
+			#if we are not on the last chapter
+			if  ($intCount -ne ($xmlChapterInfo.Chapters.EditionEntry.ChapterAtom.Count - 1)) {
+				#if the next chapter is going to be ordered
+				if ($xmlChapterInfo.Chapters.EditionEntry.ChapterAtom[$intCount + 1].ChapterSegmentUID) {
+					#set encode end time to current chapter's end time
+					$floatEncEnd = ConvertFrom-Sexagesimal $nodeChapAtom.ChapterTimeEnd
+				}
+			}
+			#else we are on the last chapter
+			else {
+				#set the encode end time to the end of the current chapter
+				$floatEncEnd = ConvertFrom-Sexagesimal $nodeChapAtom.ChapterTimeEnd
+			}
+
+			#if there is a a valid encode start and a valid encode end time
+			if (($floatEncStart -ne $null) -and ($floatEncEnd -ne $null)) {
+				#add encode start time and encode end time to encode list
+				$arrEncCmds = $arrEncCmds + @{
+					File = $objFile.FullName
+					Start = $floatEncStart
+					End = $floatEncEnd
+				}
+
+				#set the encode start and encode end times to null
+				$floatEncStart = $null
+				$floatEncEnd = $null
 			}
 		}
+
+		#increment the index counter
 		$intCount++
 	}
 	
+	return $arrEncCmds
+}
+
+function Remove-InvalidChapters ($xmlChapterInfo, $hashSegmentFiles) {
+	$arrMissAtoms = @()
+	$intCount = 0
+	foreach ($nodeChapAtom in $xmlChapterInfo.Chapters.EditionEntry.ChapterAtom) {
+		#if an sid exists
+		if ($nodeChapAtom.ChapterSegmentUID) {
+			#if the file it references does not exist
+			if (!$hashSegmentFiles.($nodeChapAtom.ChapterSegmentUID.'#text')) {
+				#remove it
+				$nodeChapAtom.ParentNode.RemoveChild($nodeChapAtom) | Out-Null
+				
+				#add its atom index to the missing atom array
+				$arrMissAtoms = $arrMissAtoms + $intCount
+			}	
+		}
+		
+		$intCount++
+	}
+
 	#Show Missing Atoms Warning
 	if ($arrMissAtoms.Count -ne 0) {
 		if ($arrMissAtoms.Count -gt 1) {
 		$strChapterAtoms = ($arrMissAtoms[0..($arrMissAtoms.Count - 2)] -join ', ') + ' and ' +  $arrMissAtoms[-1]
-		Write-Host "Warning: Missing Chapter Atoms $strChapterAtoms`nThese Will Automatically Be Skipped.`n"
+		Write-Host ("Warning: Missing External Segments For Chapter Atoms $strChapterAtoms`n" + `
+		"These Will Automatically Be Skipped.`n")
 		}
 		else {
-			Write-Host ("Warning: Missing Chapter Atom " + $arrMissAtoms[0] + "`nIt Will Automatically Be Skipped.`n")
+			Write-Host ("Warning: Missing External Segment For Chapter Atom " + $arrMissAtoms[0] + `
+			"`nIt Will Automatically Be Skipped.`n")
 		}
 	}
+	
+	return $xmlChapterInfo
+}
+
+function Generate-FileSegmentHash ($objFile) {
+	#make a hash table of matroska files referenced by their corresponding SIDs
+	$listSegmentFiles=Get-Files $objFile.Directory $false $false
+	$hashSegmentFiles = @{}
+	foreach ($objSegmentFile in $listSegmentFiles) {
+		if ($objSegmentFile.Extension -eq '.mkv') {
+			$jsonFileInfo = .\bin\mkvmerge -J $objSegmentFile.FullName | ConvertFrom-Json
+			$hashSegmentFiles.Set_Item($jsonFileInfo.Container.Properties.Segment_UID, $objSegmentFile.FullName)
+		}
+	}
+	
+	return $hashSegmentFiles
+}
+
+function Fix-Chapters ($xmlChapterInfo) {
+	#fix the chapters
+	#initialize a variable to store the extra time added by external segments
+	$floatExtraTime = 0.0
+	
+	#initialize and index counter to zero
+	$intCount = 0
+	#step through each ChapterAtom
+	foreach ($nodeChapAtom in $xmlChapterInfo.Chapters.EditionEntry.ChapterAtom) {
+		#if the current chapter references an external segment
+		if ($nodeChapAtom.ChapterSegmentUID) {
+			#remove the sid info from the chapter
+			$nodeChapAtom.RemoveChild($nodeChapAtom.ChapterSegmentUID) | Out-Null
+			
+			#get the current chapter's duration
+			$floatChapDuration = (ConvertFrom-Sexagesimal $nodeChapAtom.ChapterTimeEnd) - (ConvertFrom-Sexagesimal $nodeChapAtom.ChapterTimeStart)
+
+			#if were not on the first chapter
+			if ($i -ne 0) {
+				#get the previous chapter's end time
+				$floatPrevChapEnd = ConvertFrom-Sexagesimal $xmlChapterInfo.Chapters.EditionEntry.ChapterAtom[$intCount - 1].ChapterTimeEnd
+
+				#add the end time of the previous chapter to the current chapter's start time
+				$nodeChapAtom.ChapterTimeStart = ConvertTo-Sexagesimal ((ConvertFrom-Sexagesimal $nodeChapAtom.ChapterTimeStart) + $floatPrevChapEnd)
+
+				#add the end time of the previous chapter to the current chapter's end time
+				$nodeChapAtom.ChapterTimeEnd = ConvertTo-Sexagesimal ((ConvertFrom-Sexagesimal $nodeChapAtom.ChapterTimeEnd) + $floatPrevChapEnd)
+
+				#add this to the total extra time
+				$floatExtraTime = $floatExtraTime + $floatChapDuration
+			}
+			#else, we are on the first chapter
+			else {
+				#add the current chapter's duration to the total extra time
+				$floatExtraTime = $floatExtraTime + $floatChapDuration
+			}
+		}
+		#else the chapter is not ordered
+		else {
+			#add the total extra time to the current chapter's start time
+			$nodeChapAtom.ChapterTimeStart = ConvertTo-Sexagesimal ((ConvertFrom-Sexagesimal $nodeChapAtom.ChapterTimeStart) + $floatExtraTime)
+
+			#add the total extra time to the current chapter's end time
+			$nodeChapAtom.ChapterTimeEnd = ConvertTo-Sexagesimal ((ConvertFrom-Sexagesimal $nodeChapAtom.ChapterTimeEnd) + $floatExtraTime)
+		}
+		
+		#set a new UID for the current chapter atom
+		$nodeChapAtom.ChapterUID = Generate-UID
+
+		#increment the index counter
+		$intCount++
+	}
+
+	#set the chapters to not be ordered chapters
+	$xmlChapterInfo.Chapters.EditionEntry.EditionFlagOrdered = '0'
+	
+	return $xmlChapterInfo
+}
+
+function Get-DefaultEdition ($xmlChapterInfo) {
+	#reduce the chapter edition count to a single ordered default edition
+	#initialize a variable to store the default first ordered chapter edition index
+	$intDefaultEdIndex = $null
+	$intCount = 0
+	foreach ($nodeEditionEntry in $xmlChapterInfo.Chapters.EditionEntry) {
+		#if the chapter edition is ordered
+		if ($nodeEditionEntry.EditionFlagOrdered -eq '1') {
+			#if the edition is marked as default, 
+			if ($nodeEditionEntry.EditionFlagDefault -eq '1') {
+				#use this
+				$intDefaultEdIndex = $intCount
+				
+				#break the loop here
+				break
+			}
+		}
+		
+		#increment the entry counter
+		$intCount++
+	}
+	
+	#if a default was found, remove all other chapter editions
+	$intCount = 0
+	if ($intDefaultEdIndex -ne $null) {
+		$intCount = 0
+		foreach ($nodeEditionEntry in $xmlChapterInfo.Chapters.EditionEntry) {
+			#if the index does not equal the default one
+			if ($intCount -ne $intDefaultEdIndex) {
+				#remove the edition
+				$nodeEditionEntry.ParentNode.RemoveChild($nodeEditionEntry) | Out-Null
+			}
+			#increment the entry counter
+			$intCount++
+		}
+	}
+	else {
+	#else, no default was found, there is at least one edition ordered chapters, remove all but the first
+		$intCount = 0
+		foreach ($nodeEditionEntry in $xmlChapterInfo.Chapters.EditionEntry) {
+			#if we are not one the first entry
+			if ($intCount -ne 0) {
+				$nodeEditionEntry.ParentNode.RemoveChild($nodeEditionEntry) | Out-Null
+			}
+			
+			#increment the entry counter
+			$intCount++
+		}
+	}
+	
+	#set a new UID for this chapter edition
+	$xmlChapterInfo.Chapters.EditionEntry.EditionUID = Generate-UID
+	
+	return $xmlChapterInfo
+}
+
+function Get-TotalDuration ($arrEncCmds) {
+	#get the total output duration for display
+	$floatTotalDuration = 0.0
+	foreach ($hashCmd in $arrEncCmds) {
+		$floatTotalDuration = $floatTotalDuration + ($hashCmd.End - $hashCmd.Start)
+	}
+	
+	return $floatTotalDuration
 }
 
 function Show-Help ($boolHelp) {
@@ -58,15 +362,35 @@ Options:
 
 }
 
-function Set-WindowTitle ($strWinTitle) {
-	if ($strWinTitle) {
+function Set-WindowTitle ($strWinTitle, $boolRocSession) {		
+	if (!$boolRocSession) {
 		$strWinTitle=((Get-Host).UI.RawUI).WindowTitle=$strWinTitle
 	}
-	else {		
-		#Handle The Error
-		$strErrorMessage="Could Not Set Window Title"
-		Handle-Error $MyInvocation.MyCommand $strErrorMessage $false $strErrorLog $null $null
+}
+
+function Set-Codecs {
+	Param(
+		[string]$Video = 'libx264',
+		[string]$Audio = 'flac',
+		[string]$Sub = 'ass',
+		[bool]$CopyMode = $false
+	)
+	
+	if ($CopyMode) {
+		$Video = 'copy'
+		$Audio = 'copy'
+		$Sub = 'copy'
+		
+		Write-Host -ForegroundColor Yellow "Warning: Copy Mode Enabled. This Will Probably Cause Playback Problems."
 	}
+	
+	$hashCodecs = @{
+		Video = $Video
+		Audio = $Audio
+		Sub = $Sub
+	}
+	
+	return $hashCodecs
 }
 
 function Get-FullPath ($strInput) {
@@ -127,7 +451,7 @@ function Check-OutputPath ($strOutputFolder) {
 
 function Generate-RandomString ($strNumOfChars) {
 	$strOutput=$null
-	$intCount=0
+	$intCount=1
 	
 	$arrUpperAZ=[char[]]([int][char]'a'..[int][char]'z')
 	$arrLowerAZ=[char[]]([int][char]'A'..[int][char]'Z')
@@ -145,6 +469,41 @@ function Generate-RandomString ($strNumOfChars) {
 	}
 	
 	return $strOutput
+}
+
+function Generate-UID {
+	$intNumOfChars=20
+	$arrInput=@(0..9)
+	
+	$intWhileCount = 0
+	while ($true) {
+		[string]$strOutput=$null
+		$intCount=1
+		while ($intCount -le $intNumOfChars) {
+			#add to the output string
+			$strOutput=$strOutput+(Get-Random -InputObject $arrInput -Count 1)
+			#increment the string counter
+			$intCount++
+		}
+
+		#trim off leading zeros
+		while ($strOutput[0] -eq '0') {
+			$strOutput=$strOutput.TrimStart('0')
+		}
+		
+		$bigintOutput = New-Object -TypeName System.Numerics.BigInteger $strOutput
+		
+		$bigintMaxValue = New-Object -TypeName System.Numerics.BigInteger 18446744073709551615
+		
+		$strResult = ($bigintOutput.CompareTo($bigintMaxValue)).ToString()
+		
+		if ($strResult -eq '-1') {
+			return $strOutput
+		}
+		
+		$intWhileCount++
+	}
+	
 }
 
 function Get-Files ($InputPath, $boolInit, $boolExclude) {
@@ -268,7 +627,9 @@ function ConvertFrom-Sexagesimal ($strSexTime) {
 
 function Cleanup-Files ($arrOutputFiles, $strChapterFile) {
 	foreach ($strOutputFile in $arrOutputFiles) {
-		Remove-Item -LiteralPath $strOutputFile -ErrorAction SilentlyContinue
+		if (Test-Path -LiteralPath $strOutputFile) {
+			Remove-Item -LiteralPath $strOutputFile -ErrorAction SilentlyContinue
+		}
 	}
 	
 	if ($strChapterFile) {
