@@ -170,7 +170,7 @@ function Remove-InvalidChapters ($xmlChapterInfo, $hashSegmentFiles) {
 				$nodeChapAtom.ParentNode.RemoveChild($nodeChapAtom) | Out-Null
 				
 				#add its atom index to the missing atom array
-				$arrMissAtoms = $arrMissAtoms + $intCount
+				$arrMissAtoms = $arrMissAtoms + ($intCount + 1)
 			}	
 		}
 		
@@ -181,12 +181,12 @@ function Remove-InvalidChapters ($xmlChapterInfo, $hashSegmentFiles) {
 	if ($arrMissAtoms.Count -ne 0) {
 		if ($arrMissAtoms.Count -gt 1) {
 		$strChapterAtoms = ($arrMissAtoms[0..($arrMissAtoms.Count - 2)] -join ', ') + ' and ' +  $arrMissAtoms[-1]
-		Write-Host ("Warning: Missing External Segments For Chapter Atoms $strChapterAtoms`n" + `
-		"These Will Automatically Be Skipped.`n")
+		Write-Host ("Warning: Missing External Segments For Chapters $strChapterAtoms`n" + `
+		"These Chapters Will Be Skipped.`n")
 		}
 		else {
-			Write-Host ("Warning: Missing External Segment For Chapter Atom " + $arrMissAtoms[0] + `
-			"`nIt Will Automatically Be Skipped.`n")
+			Write-Host ("Warning: Missing External Segment For Chapter " + $arrMissAtoms[0] + `
+			"`nThis Chapter Will Be Skipped.`n")
 		}
 	}
 	
