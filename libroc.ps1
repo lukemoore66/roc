@@ -47,8 +47,6 @@ function Encode-Segments ($arrEncCmds, $hashCodecs, $arrOutputFiles) {
 
 		$intCounter++
 	}
-	
-	return $arrOutputFiles
 }
 
 function Merge-Segments ($arrOutputFiles, $strMkvMergeOutputFile, $strChapterFile) {
