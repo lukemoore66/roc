@@ -96,7 +96,7 @@ function Get-EncodeCommands ($xmlChapterInfo, $hashSegmentFiles) {
 			$floatEncEnd = ConvertFrom-Sexagesimal $nodeChapAtom.ChapterTimeEnd
 
 			#add start time, end time and file name encode list
-			$arrEncCmds = $arrEncCmds + [ordered]@{
+			$arrEncCmds = $arrEncCmds + @{
 				File = $hashSegmentFiles.($nodeChapAtom.ChapterSegmentUID.'#text')
 				Start = $floatEncStart
 				End = $floatEncEnd
@@ -395,7 +395,7 @@ function Set-Codecs {
 		Write-Host -ForegroundColor Yellow "Warning: Copy Mode Enabled. This Will Probably Cause Playback Problems."
 	}
 	
-	$hashCodecs = [ordered]@{
+	$hashCodecs = @{
 		Video = $Video
 		Audio = $Audio
 		Sub = $Sub
