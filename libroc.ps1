@@ -47,6 +47,8 @@ function Encode-Segments ($arrEncCmds, $hashCodecs, $arrOutputFiles) {
 
 		$intCounter++
 	}
+	
+	return $arrOutputFiles
 }
 
 function Merge-Segments ($arrOutputFiles, $strMkvMergeOutputFile, $strChapterFile) {
@@ -137,7 +139,7 @@ function Get-EncodeCommands ($xmlChapterInfo, $hashSegmentFiles) {
 			#if there is a a valid encode start and a valid encode end time
 			if (($floatEncStart -ne $null) -and ($floatEncEnd -ne $null)) {
 				#add encode start time and encode end time to encode list
-				$arrEncCmds = $arrEncCmds + [ordered]@{
+				$arrEncCmds = $arrEncCmds + @{
 					File = $objFile.FullName
 					Start = $floatEncStart
 					End = $floatEncEnd
@@ -210,7 +212,7 @@ function Get-OutputFiles ($arrEncCmds, $strTempPath) {
 function Generate-FileSegmentHash ($objFile) {
 	#make a hash table of matroska files referenced by their corresponding SIDs
 	$listSegmentFiles=Get-Files $objFile.Directory $false $false
-	$hashSegmentFiles = [ordered]@{}
+	$hashSegmentFiles = @{}
 	foreach ($objSegmentFile in $listSegmentFiles) {
 		if ($objSegmentFile.Extension -eq '.mkv') {
 			$jsonFileInfo = .\bin\mkvmerge -J $objSegmentFile.FullName | ConvertFrom-Json
