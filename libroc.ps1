@@ -369,7 +369,7 @@ Options:
 	-AudioCodec	- Audio Codec. flac, aac, ac3. Default: flac
 	-SubCodec	- Subtitle Codec. ass. Default: ass
 	-AudioBitrate	- Audio Bitrate (kbps). Integer. 64-640. Defaults: flac: N/A, aac: 320, ac3: 640
-	-Help		- Shows This Help Menu Default: False
+	-Help		- Shows This Help Menu. Default: False
 
 "@
 	exit
