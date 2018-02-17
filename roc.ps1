@@ -7,6 +7,7 @@ Param (
 	[switch]$SetupOnly = $false,
 	[switch]$Copy = $false,
 	[switch]$Help = $false,
+	[string]$AudioBitrate = '',
 	[string]$VideoCodec = 'libx264',
 	[string]$AudioCodec = 'flac',
 	[string]$SubCodec = 'ass'
@@ -33,14 +34,20 @@ Show-Version $SetupOnly $RocSession $strVersion
 
 #check the input parameters
 #TODO: codecs
-$listFiles = Get-Files $InputPath $true $true
 $intCrf = Check-Crf $Crf
 $strPreset = Check-Preset $Preset
 $strOutputPath = Check-OutputPath $OutputPath
 $strTempPath = Check-OutputPath $TempPath
+$strVideoCodec = Check-VideoCodec $VideoCodec
+$strAudioCodec = Check-AudioCodec $AudioCodec
+$strSubCodec = Check-SubCodec $SubCodec
+$intAudioBitrate = Check-AudioBitrate $AudioBitrate
+
+#get a list of input files
+$listFiles = Get-Files $InputPath $true $true
 
 #set up the codecs
-$hashCodecs = Set-Codecs -CopyMode $Copy -Video $VideoCodec -Audio $AudioCodec -Sub $SubCodec
+$hashCodecs = Set-Codecs $Copy $strVideoCodec $strAudioCodec $strSubCodec $intAudioBitrate
 
 #put everything in a try loop to catch errors and clean up temp files easily
 try {

@@ -36,13 +36,13 @@ function Encode-Segments ($arrEncCmds, $hashCodecs, $arrOutputFiles) {
 		if ($floatStartTime -eq 0.0) {
 			.\bin\ffmpeg.exe -v quiet -stats -y -i $hashCmd.File -map ? -t $floatDuration `
 			-c:v $hashCodecs.Video -c:a $hashCodecs.Audio -c:s $hashCodecs.Sub `
-			-preset:v $strPreset -crf $intCrf -x264opts stitchable=1 -map_chapters -1 $strOutputFile
+			-preset:v $strPreset -crf $intCrf -x264opts stitchable=1 -b:a $hashCodecs.AudioBitrate -map_chapters -1 -vf scale=624:352 $strOutputFile
 		}
 		#otherwise, if we have to use seeking, seek a bit backwards, and decode that bit until we get to the start point
 		else {
 			.\bin\ffmpeg.exe -v quiet -stats -ss $floatHybridSeek -y -i $hashCmd.File -ss $floatSeekOffset -map ? -t $floatDuration `
 			-c:v $hashCodecs.Video -c:a $hashCodecs.Audio -c:s $hashCodecs.Sub `
-			-preset:v $strPreset -crf $intCrf -x264opts stitchable=1 -map_chapters -1 $strOutputFile
+			-preset:v $strPreset -crf $intCrf -x264opts stitchable=1 -b:a $hashCodecs.AudioBitrate -map_chapters -1 -vf scale=624:352 $strOutputFile
 		}
 
 		$intCounter++
@@ -359,14 +359,18 @@ Transcodes / Remuxes Matroska Files That Use Ordered Chapters Into a Single Matr
 Example Usage: roc -InputPath 'C:\Path\To\Matroska\Files\'
 
 Options:
-	[-InputPath] <String>]	- A Valid File Or Folder Path For Input File(s).
-	[-Crf <Int>]		- An Integer Ranging From 0-51. (AKA: Video Quality 14-25 Are Sane Values)
-	[-Preset <String>]	- x264 Preset. placebo, slowest, slower, slow, medium, fast, faster, ultrafast
-	[-OutputPath <String>]	- A Valid Folder Path For Output File(s).
-	[-TempPath <String>]	- A Valid Folder Path For Temporary File(s).
-	[-Copy <Switch>]	- Copies (Remuxes) Segments. Very Fast, But May Cause Playback Problems.
-	[-Help <Switch>]	- Shows This Help Menu.
-	
+	-InputPath	- A Valid File Or Folder Path For Input File(s).
+	-Crf		- Video Quality. Integer. 0-51. Default: 16
+	-Preset		- x264 Preset. placebo,slowest,slower,slow,medium,fast,faster,ultrafast. Default: medium
+	-OutputPath	- A Valid Folder Path For Output File(s). Default: '<ScriptPath>\out'
+	-TempPath	- A Valid Folder Path For Temporary File(s). Default '<ScriptPath>\'
+	-Copy		- Copies Segments. Very Fast, But May Cause Playback Problems. Default: False
+	-VideoCodec	- Video Codec. libx264, libx265. Default: libx264
+	-AudioCodec	- Audio Codec. flac, aac, ac3. Default: flac
+	-SubCodec	- Subtitle Codec. ass. Default: ass
+	-AudioBitrate	- Audio Bitrate (kbps). Integer. 64-640. Defaults: flac: N/A, aac: 320, ac3: 640
+	-Help		- Shows This Help Menu Default: False
+
 "@
 	exit
 	}
@@ -379,26 +383,41 @@ function Set-WindowTitle ($strWinTitle, $boolRocSession) {
 	}
 }
 
-function Set-Codecs {
-	Param(
-		[string]$Video = 'libx264',
-		[string]$Audio = 'flac',
-		[string]$Sub = 'ass',
-		[bool]$CopyMode = $false
-	)
-	
-	if ($CopyMode) {
-		$Video = 'copy'
-		$Audio = 'copy'
-		$Sub = 'copy'
+function Set-Codecs ($boolCopyMode, $strVideoCodec, $strAudioCodec, $strSubCodec, $intAudioBitrate) {
+	if ($boolCopyMode) {
+		$strVideoCodec = 'copy'
+		$strAudioCodec = 'copy'
+		$strSubCodec = 'copy'
+		$intAudioBitrate = 64
 		
-		Write-Host -ForegroundColor Yellow "Warning: Copy Mode Enabled. This Will Probably Cause Playback Problems."
+		Write-Host -ForegroundColor Yellow "Warning: Codec Copy Mode Enabled. This Will Probably Cause Playback Problems.`n"
+	}
+	
+	if ($intAudioBitrate -eq $null) {
+		if ($strAudioCodec -eq 'aac') {
+			$intAudioBitrate = 320
+		}
+		
+		if ($strAudioCodec -eq 'ac3') {
+			$intAudioBitrate = 640
+		}
+		
+		if ($strAudioCodec -eq 'flac') {
+			$intAudioBitrate = 64
+		}
+	}
+	else {
+		if ($strAudioCodec -eq 'flac') {
+			Write-Host -ForegroundColor Yellow ("Warning: Audio Bitrate Does Not Apply When Using The FLAC Codec.`n" + `
+			"Please Use AAC or AC3 Instead.`n")
+		}
 	}
 	
 	$hashCodecs = @{
-		Video = $Video
-		Audio = $Audio
-		Sub = $Sub
+		Video = $strVideoCodec
+		Audio = $strAudioCodec
+		Sub = $strSubCodec
+		AudioBitrate = ([string]$intAudioBitrate + 'k')
 	}
 	
 	return $hashCodecs
@@ -604,6 +623,87 @@ function Check-Preset ($strPreset) {
 		Write-Host ($arrValid -join ', ')
 		exit
 	}
+}
+
+function Check-AudioBitrate ($strAudioBitrate) {
+	if (!$strAudioBitrate) {
+		return $null
+	}
+	
+	$intMin = 64
+	$intMax = 640
+	
+	try {
+		$intAudioBitrate = 0 + ([Math]::Round($strAudioBitrate))
+	}
+	catch {
+		#Handle The Error
+		Write-Host "Audio Bitrate Is Invalid. Please Use An Integer Ranging From $intMin-$intMax"
+		exit
+	}
+	
+	if (($intAudioBitrate -ge $intMin) -and ($intAudioBitrate -le $intMax)) {
+		return $intAudioBitrate
+	}
+	else {
+		#Handle The Error
+		Write-Host "Audio Bitrate Is Invalid Please Use An Integer Ranging From $intMin-$intMax"
+		exit
+	}
+}
+
+function Check-AudioCodec ($strAudioCodec) {
+	$arrValid = @('flac', 'aac', 'ac3')
+	
+	if (!$strAudioCodec) {
+		Write-Host ("No Audio Codec Defined. Valid Codecs:`n" + ($arrValid -join ', '))
+		exit
+	}
+	
+	$strAudioCodec = ($strAudioCodec.Trim()).ToLower()
+	
+	if ($arrValid -contains $strAudioCodec) {
+		return $strAudioCodec
+	}
+	
+	Write-Host ("Invalid Audio Codec. Valid Codecs:`n" + ($arrValid -join ', '))
+	exit
+}
+
+function Check-VideoCodec ($strVideoCodec) {
+	$arrValid = @('libx264', 'libx265')
+	
+	if (!$strVideoCodec) {
+		Write-Host ("No Video Codec Defined. Valid Codecs:`n" + ($arrValid -join ', '))
+		exit
+	}
+	
+	$strVideoCodec = ($strVideoCodec.Trim()).ToLower()
+	
+	if ($arrValid -contains $strVideoCodec) {
+		return $strVideoCodec
+	}
+	
+	Write-Host ("Invalid Video Codec. Valid Codecs:`n" + ($arrValid -join ', '))
+	exit
+}
+
+function Check-SubCodec ($strSubCodec) {
+	$arrValid = @('ass')
+	
+	if (!$strSubCodec) {
+		Write-Host ("No Subtitle Codec Defined. Valid Codecs:`n" + ($arrValid -join ', '))
+		exit
+	}
+	
+	$strSubCodec = ($strSubCodec.Trim()).ToLower()
+	
+	if ($arrValid -contains $strSubCodec) {
+		return $strSubCodec
+	}
+	
+	Write-Host ("Invalid Subtitle Codec. Valid Codecs:`n" + ($arrValid -join ', '))
+	exit
 }
 
 function ConvertTo-Sexagesimal ([float]$floatDuration) {
