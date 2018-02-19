@@ -1,6 +1,6 @@
 Param (
 	[string]$InputPath = '',
-	[int]$Crf = 16,
+	[string]$Crf = '16',
 	[string]$Preset = 'medium',
 	[string]$OutputPath = "$PSScriptRoot\out",
 	[string]$TempPath = "$PSScriptRoot",
@@ -10,7 +10,9 @@ Param (
 	[string]$AudioBitrate = '',
 	[string]$VideoCodec = 'libx264',
 	[string]$AudioCodec = 'flac',
-	[string]$SubCodec = 'ass'
+	[string]$SubCodec = 'ass',
+	[switch]$Aggressive = $false,
+	[string]$Offset = '40'
 )
 
 #set version
@@ -42,6 +44,8 @@ $strVideoCodec = Check-VideoCodec $VideoCodec
 $strAudioCodec = Check-AudioCodec $AudioCodec
 $strSubCodec = Check-SubCodec $SubCodec
 $intAudioBitrate = Check-AudioBitrate $AudioBitrate
+$floatOffsetTime = Check-OffsetTime $Offset
+$boolAggressive = $Aggressive
 
 #get a list of input files
 $listFiles = Get-Files $InputPath $true $true
@@ -79,11 +83,12 @@ try {
 		$xmlChapterInfo = Remove-InvalidChapters $xmlChapterInfo $hashSegmentFiles
 
 		#make an array of hashes containing encode commands for ffmpeg
-		$arrEncCmds = Get-EncodeCommands $xmlChapterInfo $hashSegmentFiles
+		$arrEncCmds = Get-EncodeCommands $xmlChapterInfo $hashSegmentFiles `
+		$boolAggressive $floatOffsetTime
 
 		#fix the chapter entries now the encode commands have been generated
-		$xmlChapterInfo = Fix-Chapters $xmlChapterInfo
-
+		$xmlChapterInfo = Fix-Chapters $xmlChapterInfo $boolAggressive $floatOffsetTime
+			
 		#define the chapter file output path
 		$strChapterFile = $strTempPath + '\' + (Generate-RandomString) + '.xml'
 

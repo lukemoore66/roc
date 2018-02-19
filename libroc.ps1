@@ -1,3 +1,68 @@
+function Get-EncCmdsAggressive ($xmlChapterInfo, $hashSegmentFiles, $floatOffsetTime) {
+	#aggressive mode encode instructions
+	#initialize an array for storing encode instructions
+	$arrEncCmds = @()
+	
+	#for each chapter atom
+	foreach ($nodeChapAtom in $xmlChapterInfo.Chapters.EditionEntry.ChapterAtom) {
+		#if the chapter has an sid
+		if ($nodeChapAtom.ChapterSegmentUID) {
+			#get the filename
+			$strFilePath = $hashSegmentFiles.($nodeChapAtom.ChapterSegmentUID.'#text')
+		}
+		#else it does not have an sid
+		else {
+			#use the main filename
+			$strFilePath = $objFile.FullName
+		}
+		
+		#add the file path and chapter start / finish times to the encode instructions array
+		$arrEncCmds = $arrEncCmds + @{
+			File = $strFilePath
+			Start = (ConvertFrom-Sexagesimal $nodeChapAtom.ChapterTimeStart) + $floatOffsetTime
+			End = (ConvertFrom-Sexagesimal $nodeChapAtom.ChapterTimeEnd) - $floatOffsetTime
+		}
+	}
+	
+	return $arrEncCmds
+}
+
+function Fix-ChapAggressive ($xmlChapterInfo, $floatOffsetTime) {
+	#aggressive mode fix chapters
+	#for each chapter atom
+	$intCount = 0
+	$floatProgress = 0.0
+	foreach ($nodeChapAtom in $xmlChapterInfo.Chapters.EditionEntry.ChapterAtom) {
+			#get the chapter's duration
+			$floatChapDur = (ConvertFrom-Sexagesimal $nodeChapAtom.ChapterTimeEnd) - (ConvertFrom-Sexagesimal $nodeChapAtom.ChapterTimeStart)
+		
+			#set the chapter start to the current progress
+			$nodeChapAtom.ChapterTimeStart = ConvertTo-Sexagesimal ($floatProgress + $floatOffsetTime)
+			
+			#add the chapter duration to the current progress
+			$floatProgress = $floatProgress + $floatChapDur 
+			
+			#set the chapter end time to the current progress, minus the correction
+			$nodeChapAtom.ChapterTimeEnd = ConvertTo-Sexagesimal ($floatProgress - $floatOffsetTime)
+			
+		#if the chapter has sid info
+		if ($nodeChapAtom.ChapterSegmentUID) {
+			#remove the sid info from the chapter
+			$nodeChapAtom.RemoveChild($nodeChapAtom.ChapterSegmentUID) | Out-Null
+		}
+		
+		#set a new UID for the current chapter atom
+		$nodeChapAtom.ChapterUID = Generate-UID
+		
+		$intCount++
+	}
+	
+	#set the chapters to not be ordered chapters
+	$xmlChapterInfo.Chapters.EditionEntry.EditionFlagOrdered = '0'
+	
+	return $xmlChapterInfo
+}
+
 function Encode-Segments ($arrEncCmds, $hashCodecs, $arrOutputFiles) {
 	Write-Host "Encoding...`nPress Ctrl + c to exit.`n"
 	
@@ -34,29 +99,30 @@ function Encode-Segments ($arrEncCmds, $hashCodecs, $arrOutputFiles) {
 
 		#avoid seeking when possible, as ffmpeg seems to be buggy sometimes
 		if ($floatStartTime -eq 0.0) {
-			.\bin\ffmpeg.exe -v quiet -stats -y -i $hashCmd.File -map ? -t $floatDuration `
+			.\bin\ffmpeg.exe -v error -stats -y -i $hashCmd.File -t $floatDuration `
+			-map 0 -map -0:t? -map -0:d? -map_chapters -0 -map_metadata -0 `
 			-c:v $hashCodecs.Video -c:a $hashCodecs.Audio -c:s $hashCodecs.Sub `
-			-preset:v $strPreset -crf $intCrf -x264opts stitchable=1 -b:a $hashCodecs.AudioBitrate -map_chapters -1 $strOutputFile
+			-preset:v $strPreset -crf $intCrf -x264opts stitchable=1 -max_muxing_queue_size 4000 -b:a $hashCodecs.AudioBitrate -vf scale=312:176 $strOutputFile	
 		}
-		#otherwise, if we have to use seeking, seek a bit backwards, and decode that bit until we get to the start point
+		#otherwise, we have to use seeking, seek a bit backwards, and decode that bit until we get to the start point
 		else {
-			.\bin\ffmpeg.exe -v quiet -stats -ss $floatHybridSeek -y -i $hashCmd.File -ss $floatSeekOffset -map ? -t $floatDuration `
+			.\bin\ffmpeg.exe -v error -stats -y -ss $floatHybridSeek -i $hashCmd.File -ss $floatSeekOffset -t $floatDuration `
+			-map 0 -map -0:t? -map -0:d? -map_chapters -0 -map_metadata -0 `
 			-c:v $hashCodecs.Video -c:a $hashCodecs.Audio -c:s $hashCodecs.Sub `
-			-preset:v $strPreset -crf $intCrf -x264opts stitchable=1 -b:a $hashCodecs.AudioBitrate -map_chapters -1 $strOutputFile
+			-preset:v $strPreset -crf $intCrf -x264opts stitchable=1 -max_muxing_queue_size 4000 -b:a $hashCodecs.AudioBitrate -vf scale=312:176 $strOutputFile
 		}
 
 		$intCounter++
 	}
-	
-	return $arrOutputFiles
 }
 
 function Merge-Segments ($arrOutputFiles, $strMkvMergeOutputFile, $strChapterFile) {
 	#Make an expression string that mkvmerge can run
 	Write-Host "Appending Segments. Please Wait..."
-	$strMkvMerge = ".\bin\mkvmerge --output '$strMkvMergeOutputFile' --chapters '$strChapterFile' " + `
-	($arrOutputFiles -join " + ") + ' | Out-Null'
-
+	$strMkvMerge = ".\bin\mkvmerge.exe --output '$strMkvMergeOutputFile' --chapters '$strChapterFile' " + `
+	"-T -M --no-chapters --no-global-tags " + ($arrOutputFiles -join ' + -T -M --no-chapters --no-global-tags ') + `
+	(" -A -D -S -B --no-chapters '" + $objFile.FullName + "'") + ' | Out-Null'
+	
 	#Use mkvmerge to join all of the output files
 	Invoke-Expression $strMkvMerge
 
@@ -73,12 +139,18 @@ function Show-Version ($SetupOnly, $RocSession, $strVersion) {
 	}
 	else {
 		if (!$RocSession) {
-			Write-Host "(roc) - Remove Ordered Chapters $strVersion 2018 By d3sim8.`n"
+			Write-Host "(roc) - Remove Ordered Chapters $strVersion By d3sim8.`n"
 		}
 	}
 }
 
-function Get-EncodeCommands ($xmlChapterInfo, $hashSegmentFiles) {
+function Get-EncodeCommands ($xmlChapterInfo, $hashSegmentFiles, $boolAggressive, $floatOffsetTime) {
+	#if aggressive mode is enabled
+	if ($boolAggressive) {
+		#use it to generate encode commands instead
+		return Get-EncCmdsAggressive $xmlChapterInfo $hashSegmentFiles $floatOffsetTime
+	}
+	
 	#make an array of encode commands for ffmpeg to process
 	#Initialize an array of encode commands
 	$arrEncCmds = @()
@@ -223,7 +295,13 @@ function Generate-FileSegmentHash ($objFile) {
 	return $hashSegmentFiles
 }
 
-function Fix-Chapters ($xmlChapterInfo) {
+function Fix-Chapters ($xmlChapterInfo, $boolAggressive, $floatOffsetTime) {
+	#if aggressive mode is enabled
+	if ($boolAggressive) {
+		#use aggressive mode to fix the chapters
+		return 	Fix-ChapAggressive $xmlChapterInfo $floatOffsetTime
+	}
+
 	#fix the chapters
 	#initialize a variable to store the extra time added by external segments
 	$floatExtraTime = 0.0
@@ -366,9 +444,14 @@ Options:
 	-TempPath	- A Valid Folder Path For Temporary File(s). Default '<ScriptPath>\'
 	-Copy		- Copies Segments. Very Fast, But May Cause Playback Problems. Default: False
 	-VideoCodec	- Video Codec. libx264, libx265. Default: libx264
-	-AudioCodec	- Audio Codec. flac, aac, ac3. Default: flac
-	-SubCodec	- Subtitle Codec. ass. Default: ass
-	-AudioBitrate	- Audio Bitrate (kbps). Integer. 64-640. Defaults: flac: N/A, aac: 320, ac3: 640
+	-AudioCodec	- Audio Codec. flac, aac, ac3, vorbis. Default: flac
+	-SubCodec	- Subtitle Codec. ass, srt. Default: ass
+	-AudioBitrate	- Audio Bitrate (kbps). Integer. 64-640.
+			  Defaults: flac: N/A, aac: 320, ac3: 640, vorbis: 320
+	-Aggressive	- Aggressive Segment Detection. Useful With Repetitve / Non-Standard Chapter Layouts.
+			  This Mode Should Only Be Used When Neccessary. Default: False
+	-Offset		- Chapter Start / Finish Offset (ms). Prevents Repeated Frames When Using Aggressive Mode.
+			  Creates A Time Gap Between Chapters Of This Duraiton. Default: 40
 	-Help		- Shows This Help Menu. Default: False
 
 "@
@@ -404,6 +487,10 @@ function Set-Codecs ($boolCopyMode, $strVideoCodec, $strAudioCodec, $strSubCodec
 		
 		if ($strAudioCodec -eq 'flac') {
 			$intAudioBitrate = 64
+		}
+		
+		if ($strAudioCodec -eq 'vorbis') {
+			$intAudioBitrate = 320
 		}
 	}
 	else {
@@ -582,25 +669,31 @@ function Get-Files ($InputPath, $boolInit, $boolExclude) {
 }
 
 function Check-CRF ($strCrf) {
-	#Set Some Sensible Defaults If The Constant Rate Factor Is Undefined
-	if (!$strCrf) {
-		return 14
+	$intMin = 0
+	$intMax = 51
+	
+	#Show An Error If The Constant Rate Factor Is Undefined
+	if ($strCrf -eq $null) {
+		Write-Host "Constant Rate Factor Is Not Defined. Please Enter An Integer Ranging From $intMin-$intMax."
+		exit
 	}
 	
 	#Make Sure The CRF Is Set To An Integer Between 1 and 51
 	try {
-		$intCrf=0+([Math]::Round($strCrf))
+		$intCrf=0 + ([Math]::Round($strCrf))
 	}
 	catch {
 		Write-Host "Constant Rate Factor: $strCrf`nIs Invalid. Please Use An Integer Ranging From 0-51"
+		exit
 	}
 	
-	if (($intCrf -ge 0) -and ($intCrf -le 51)) {
+	if (($intCrf -ge $intMin) -and ($intCrf -le $intMax)) {
 		return $intCrf
 	}
 	else {
 		#Handle The Error
 		Write-Host "Constant Rate Factor: $strCrf`nIs Invalid. Please Use An Integer Ranging From 0-51"
+		exit
 	}
 }
 
@@ -653,10 +746,10 @@ function Check-AudioBitrate ($strAudioBitrate) {
 }
 
 function Check-AudioCodec ($strAudioCodec) {
-	$arrValid = @('flac', 'aac', 'ac3')
+	$arrValid = @('flac', 'aac', 'ac3', 'vorbis')
 	
 	if (!$strAudioCodec) {
-		Write-Host ("No Audio Codec Defined. Valid Codecs:`n" + ($arrValid -join ', '))
+		Write-Host ("Audio Codec Is Not Defined. Valid Codecs:`n" + ($arrValid -join ', '))
 		exit
 	}
 	
@@ -674,7 +767,7 @@ function Check-VideoCodec ($strVideoCodec) {
 	$arrValid = @('libx264', 'libx265')
 	
 	if (!$strVideoCodec) {
-		Write-Host ("No Video Codec Defined. Valid Codecs:`n" + ($arrValid -join ', '))
+		Write-Host ("Video Codec Is Not Defined. Valid Codecs:`n" + ($arrValid -join ', '))
 		exit
 	}
 	
@@ -689,10 +782,10 @@ function Check-VideoCodec ($strVideoCodec) {
 }
 
 function Check-SubCodec ($strSubCodec) {
-	$arrValid = @('ass')
+	$arrValid = @('ass', 'srt')
 	
 	if (!$strSubCodec) {
-		Write-Host ("No Subtitle Codec Defined. Valid Codecs:`n" + ($arrValid -join ', '))
+		Write-Host ("Subtitle Codec Is Not Defined. Valid Codecs:`n" + ($arrValid -join ', '))
 		exit
 	}
 	
@@ -745,5 +838,34 @@ function Cleanup-Files ($arrOutputFiles, $strChapterFile) {
 	
 	if ($strChapterFile) {
 		Remove-Item -LiteralPath $strChapterFile -ErrorAction SilentlyContinue
+	}
+}
+
+function Check-OffsetTime ($strOffsetTime) {
+	$intMin = 0
+	$intMax = 1000
+	
+	#show an error if the offset time is undefined
+	if ($strOffsetTime -eq $null) {
+		Write-Host "Offset Time Is Not Defined. Please Enter An Integer Ranging From $intMin-$intMax."
+		exit
+	}
+	
+	#Make Sure The CRF Is Set To An Integer Between 1 and 51
+	try {
+		$strOffsetTime = 0 + ([Math]::Round($strOffsetTime))
+	}
+	catch {
+		Write-Host "Offset Time Is Invalid. Please Enter An Integer Ranging From $intMin-$intMax."
+		exit
+	}
+	
+	if (($strOffsetTime -ge $intMin) -and ($strOffsetTime -le $intMax)) {
+		return ($strOffsetTime/2)/1000
+	}
+	else {
+		#Handle The Error
+		Write-Host "Offset Time Is Invalid. Please Enter An Integer Ranging From $intMin-$intMax."
+		exit
 	}
 }
