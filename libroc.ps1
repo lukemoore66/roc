@@ -118,7 +118,7 @@ function Merge-Segments ($arrOutputFiles, $strMmgOutputFile, $strChapterFile, $s
 	#Make an expression string that mkvmerge can run
 	Write-Host "Appending Segments. Please Wait..."
 	$strMkvMerge = ".\bin\mkvmerge.exe --output '$strMmgOutputFile' --chapters '$strChapterFile' " + `
-	"-A -D -S -B --no-chapters $strInputFile " + ($arrOutputFiles -join ' +  ') + ' | Out-Null'
+	"-A -D -S -B --no-chapters '$strInputFile' '" + ($arrOutputFiles -join "' + '") + "' | Out-Null"
 	
 	#Use mkvmerge to join all of the output files
 	Invoke-Expression $strMkvMerge
@@ -133,7 +133,7 @@ function Remux-Subs ($strOutputFile, $arrSubInfo, $strMmgOutputFile) {
 			Invoke-Expression $strMkvExt
 		}
 	
-	$strMkvMerge = ".\bin\mkvmerge.exe --output '$strOutputFile' -S $strMmgOutputFile " + ($arrAssFiles -join ' ') + ' | Out-Null'
+	$strMkvMerge = ".\bin\mkvmerge.exe --output '$strOutputFile' -S '$strMmgOutputFile' '" + ($arrAssFiles -join "' '") + "' | Out-Null"
 	
 	Write-Host "Remuxing Subtitles..."
 	
