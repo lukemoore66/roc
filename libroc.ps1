@@ -57,6 +57,12 @@ function Fix-ChapAggressive ($xmlChapterInfo, $floatOffsetTime) {
 		$intCount++
 	}
 	
+	#set a new UID for this chapter edition
+	if (!$xmlChapterInfo.Chapters.EditionEntry.EditionUID) {
+		$xmlChapterInfo.Chapters.EditionEntry.AppendChild($xmlChapterInfo.CreateElement('EditionUID')) | Out-Null
+	}
+	$xmlChapterInfo.Chapters.EditionEntry.EditionUID = Generate-UID
+	
 	#set the chapters to not be ordered chapters
 	$xmlChapterInfo.Chapters.EditionEntry.EditionFlagOrdered = '0'
 	
@@ -101,13 +107,13 @@ function Encode-Segments ($arrEncCmds, $hashCodecs, $arrOutputFiles) {
 		if ($floatStartTime -eq 0.0) {
 			.\bin\ffmpeg.exe -v error -stats -y -i $hashCmd.File -t $floatDuration `
 			-map 0 -map_chapters -1 -c:v $hashCodecs.Video -c:a $hashCodecs.Audio -c:s $hashCodecs.Sub -preset:v $strPreset -crf $intCrf `
-			-x264opts stitchable=1 -max_muxing_queue_size 4000 -b:a $hashCodecs.AudioBitrate $strOutputFile
+			-x264opts stitchable=1 -max_muxing_queue_size 4000 -b:a $hashCodecs.AudioBitrate -vf scale=624:352 $strOutputFile
 		}
 		#otherwise, we have to use seeking, seek a bit backwards, and decode that bit until we get to the start point
 		else {
 			.\bin\ffmpeg.exe -v error -stats -y -ss $floatHybridSeek -i $hashCmd.File -ss $floatSeekOffset -t $floatDuration `
 			-map 0 -map_chapters -1 -c:v $hashCodecs.Video -c:a $hashCodecs.Audio -c:s $hashCodecs.Sub -preset:v $strPreset -crf $intCrf `
-			-x264opts stitchable=1 -max_muxing_queue_size 4000 -b:a $hashCodecs.AudioBitrate $strOutputFile
+			-x264opts stitchable=1 -max_muxing_queue_size 4000 -b:a $hashCodecs.AudioBitrate -vf scale=624:352 $strOutputFile
 		}
 
 		$intCounter++
@@ -116,7 +122,7 @@ function Encode-Segments ($arrEncCmds, $hashCodecs, $arrOutputFiles) {
 
 function Merge-Segments ($arrOutputFiles, $strMmgOutputFile, $strChapterFile, $strInputFile) {
 	#Make an expression string that mkvmerge can run
-	Write-Host "Appending Segments. Please Wait..."
+	Write-Host "Appending Segments..."
 	$strMkvMerge = ".\bin\mkvmerge.exe --output '$strMmgOutputFile' --chapters '$strChapterFile' " + `
 	"-A -D -S -B --no-chapters '$strInputFile' '" + ($arrOutputFiles -join "' + '") + "' | Out-Null"
 	
@@ -125,15 +131,15 @@ function Merge-Segments ($arrOutputFiles, $strMmgOutputFile, $strChapterFile, $s
 }
 
 function Remux-Subs ($strOutputFile, $arrSubInfo, $strMmgOutputFile) {
-	$arrAssFiles = @()
+	$arrSubFiles = @()
 	foreach ($hashSubInfo in $arrSubInfo) {
-			$arrAssFiles = $arrAssFiles + $hashSubInfo.File
+			$arrSubFiles = $arrSubFiles + $hashSubInfo.File
 			$strMkvExt = ".\bin\mkvextract.exe '$strMmgOutputFile' tracks " + $hashSubInfo.Index + ":'" + $hashSubInfo.File + "' | Out-Null"
 			
 			Invoke-Expression $strMkvExt
 		}
 	
-	$strMkvMerge = ".\bin\mkvmerge.exe --output '$strOutputFile' -S '$strMmgOutputFile' '" + ($arrAssFiles -join "' '") + "' | Out-Null"
+	$strMkvMerge = ".\bin\mkvmerge.exe --output '$strOutputFile' -S '$strMmgOutputFile' '" + ($arrSubFiles -join "' '") + "' | Out-Null"
 	
 	Write-Host "Remuxing Subtitles..."
 	
@@ -141,20 +147,32 @@ function Remux-Subs ($strOutputFile, $arrSubInfo, $strMmgOutputFile) {
 	Invoke-Expression $strMkvMerge
 }
 
-function Get-SubInfo ($jsonFileInfo, $strTempPath) {
+function Get-SubInfo ($strMmgOutputFile, $strTempPath) {
+	#get the needed info from the mkvmerge output file
+	$jsonFileInfo = .\bin\mkvmerge -J $strMmgOutputFile | ConvertFrom-Json
+	
+	#go through each stream and extract subtitles
 	$intCount = 0
-	$arrAssInfo = @()
+	$arrSubInfo = @()
 	foreach ($jsonProperties in $jsonFileInfo.tracks.properties) {
 		if ($jsonProperties.codec_id -eq 'S_TEXT/ASS') {
-			$arrAssInfo = $arrAssInfo + @{
+			$arrSubInfo = $arrSubInfo + @{
 				Index = $intCount
 				File = $strTempPath + '\' + (Generate-RandomString) + '.ass'
 			}
 		}
+		
+		if ($jsonProperties.codec_id -eq 'S_TEXT/UTF8') {
+			$arrSubInfo = $arrSubInfo + @{
+				Index = $intCount
+				File = $strTempPath + '\' + (Generate-RandomString) + '.srt'
+			}
+		}
+		
 		$intCount++
 	}
 	
-	return $arrAssInfo
+	return $arrSubInfo
 }
 
 function Show-Version ($SetupOnly, $RocSession, $strVersion) {
@@ -381,65 +399,121 @@ function Fix-Chapters ($xmlChapterInfo, $boolAggressive, $floatOffsetTime) {
 		#increment the index counter
 		$intCount++
 	}
-
+	
+	#set a new UID for this chapter edition
+	if (!$xmlChapterInfo.Chapters.EditionEntry.EditionUID) {
+		$xmlChapterInfo.Chapters.EditionEntry.AppendChild($xmlChapterInfo.CreateElement('EditionUID')) | Out-Null
+	}
+	$xmlChapterInfo.Chapters.EditionEntry.EditionUID = Generate-UID
+	
 	#set the chapters to not be ordered chapters
 	$xmlChapterInfo.Chapters.EditionEntry.EditionFlagOrdered = '0'
 	
 	return $xmlChapterInfo
 }
 
-function Get-DefaultEdition ($xmlChapterInfo) {
-	#reduce the chapter edition count to a single ordered default edition
-	#initialize a variable to store the default first ordered chapter edition index
-	$intDefaultEdIndex = $null
-	$intCount = 0
-	foreach ($nodeEditionEntry in $xmlChapterInfo.Chapters.EditionEntry) {
-		#if the chapter edition is ordered
-		if ($nodeEditionEntry.EditionFlagOrdered -eq '1') {
-			#if the edition is marked as default, 
-			if ($nodeEditionEntry.EditionFlagDefault -eq '1') {
-				#use this
-				$intDefaultEdIndex = $intCount
-				
-				#break the loop here
-				break
-			}
-		}
-		
-		#increment the entry counter
-		$intCount++
+function Check-ChapEdition ($strChapterEdition) {
+	if (!$strChapterEdition) {
+		return $null
 	}
 	
-	#if a default was found, remove all other chapter editions
-	$intCount = 0
-	if ($intDefaultEdIndex -ne $null) {
-		$intCount = 0
-		foreach ($nodeEditionEntry in $xmlChapterInfo.Chapters.EditionEntry) {
-			#if the index does not equal the default one
-			if ($intCount -ne $intDefaultEdIndex) {
-				#remove the edition
-				$nodeEditionEntry.ParentNode.RemoveChild($nodeEditionEntry) | Out-Null
-			}
-			#increment the entry counter
-			$intCount++
-		}
+	$intMin = 0
+	$intMax = 99
+	
+	try {
+		$intChapterEdition = 0 + ([Math]::Round($strChapterEdition))
+	}
+	catch {
+		#Handle The Error
+		Write-Host "Chapter Edition Index Is Invalid. Please Use An Integer Ranging From $intMin-$intMax"
+		exit
+	}
+	
+	if (($intChapterEdition -ge $intMin) -and ($intChapterEdition -le $intMax)) {
+		return $intChapterEdition
 	}
 	else {
-	#else, no default was found, there is at least one edition ordered chapters, remove all but the first
-		$intCount = 0
-		foreach ($nodeEditionEntry in $xmlChapterInfo.Chapters.EditionEntry) {
-			#if we are not one the first entry
-			if ($intCount -ne 0) {
-				$nodeEditionEntry.ParentNode.RemoveChild($nodeEditionEntry) | Out-Null
+		#Handle The Error
+		Write-Host "Chapter Edition Index Is Invalid Please Use An Integer Ranging From $intMin-$intMax"
+		exit
+	}
+}
+
+function Get-ChapEdition ($xmlChapterInfo, $intInputIndex) {
+	#initialize a variable to store the chapter edition index
+	$intChapEdIndex = $null
+	
+	
+	#if a chapter edition is manually defined
+	if ($intInputIndex -ne $null) {
+		#if it exists
+		if (@($xmlChapterInfo.Chapters.EditionEntry)[$intInputIndex]) {
+			#if it has ordered chapters
+			if (@($xmlChapterInfo.Chapters.EditionEntry)[$intInputIndex].EditionFlagOrdered -eq '1') {
+				#mark this one for use
+				$intChapEdIndex = $intInputIndex
 			}
-			
-			#increment the entry counter
+			#else it does not have ordered chapters
+			else {
+				#show a warning
+				Write-Host ("Warning: Chapter Edition Index: $intInputIndex Was Not Found.`n" + `
+				"Automatically Selecting Chapter Edition.`n")
+			}	
+		}
+	}
+	
+	#if the chapter edition index is null
+	if ($intChapEdIndex -eq $null) {
+		#for each chapter edition
+		$intCount = 0
+		foreach ($nodeChapEd in $xmlChapterInfo.Chapters.EditionEntry) {
+			#if a chapter edition is ordered
+			if ($nodeChapEd.EditionFlagOrdered -eq '1') {
+				#if it is the default
+				if ($nodeEditionEntry.EditionFlagDefault -eq '1') {
+					#mark this one for use
+					$intChapEdIndex = $intCount
+					break
+				}
+			}
+			#increment the chapter edition index counter
 			$intCount++
 		}
 	}
 	
-	#set a new UID for this chapter edition
-	$xmlChapterInfo.Chapters.EditionEntry.EditionUID = Generate-UID
+	#if the chapter edition index is null
+	if ($intChapEdIndex -eq $null) {
+		#for each chapter edition
+		$intCount = 0
+		foreach ($nodeChapEd in $xmlChapterInfo.Chapters.EditionEntry) {
+			#if a chapter edition is ordered
+			if ($nodeChapEd.EditionFlagOrdered -eq '1') {
+				#mark the first one for use
+				$intChapEdIndex = $intCount
+				break
+			}
+			#increment the chapter edition index counter
+			$intCount++
+		}
+	}
+	
+	#if the chapter edition is not null, i.e. one was found
+	if ($intChapEdIndex -ne $null) {
+		#remove all other chapter entries
+		$intCount = 0
+		foreach ($nodeChapEd in $xmlChapterInfo.Chapters.EditionEntry) {
+				if ($intCount -ne $intChapEdIndex) {
+					$nodeChapEd.ParentNode.RemoveChild($nodeChapEd) | Out-Null
+				}
+			#increment the chapter edition index counter
+			$intCount++
+		}
+	}
+	#else, a chapter edition index was not found
+	else {
+		Write-Host "No Ordered Chapter Editions Found. Skipping File."
+		continue
+	}
 	
 	return $xmlChapterInfo
 }
@@ -467,20 +541,23 @@ Example Usage: roc -InputPath 'C:\Path\To\Matroska\Files\'
 Options:
 	-InputPath	- A Valid File Or Folder Path For Input File(s).
 	-Crf		- Video Quality. Integer. 0-51. Default: 16
-	-Preset		- x264 Preset. placebo,slowest,slower,slow,medium,fast,faster,ultrafast. Default: medium
+	-Preset		- x264 Preset. placebo, slowest, slower, slow,medium, fast, faster, ultrafast.
+			  Default: medium
 	-OutputPath	- A Valid Folder Path For Output File(s). Default: '<ScriptPath>\out'
 	-TempPath	- A Valid Folder Path For Temporary File(s). Default '<ScriptPath>\'
-	-Copy		- Copies Segments. Very Fast, But May Cause Playback Problems. Default: False
+	-Copy		- Copies Segments. Very Fast, But May Cause Playback / Decoding Problems.
+			  Default: False
 	-VideoCodec	- Video Codec. libx264, libx265. Default: libx264
 	-AudioCodec	- Audio Codec. flac, aac, ac3, vorbis. Default: flac
-	-SubCodec	- Subtitle Codec. ass. Default: ass
+	-SubCodec	- Subtitle Codec. ass, srt. Default: ass
 	-AudioBitrate	- Audio Bitrate (kbps). Integer. 64-640.
 			  Defaults: flac: N/A, aac: 320, ac3: 640, vorbis: 320
-	-Aggressive	- Aggressive Segment Detection. Useful With Repetitve / Non-Standard Chapter Layouts.
+	-Aggressive	- Aggressive Segment Detection. Use With Recurring / Non-Standard Chapter Layouts,
 			  This Mode Should Only Be Used When Neccessary. Default: False
-	-Offset		- Chapter Start / Finish Offset (ms). Prevents Repeated Frames When Using Aggressive Mode.
-			  Creates A Time Gap Between Chapters Of This Duraiton. Default: 40
-	-Help		- Shows This Help Menu. Default: False
+	-Offset		- Chapter Start / Finish Offset (ms). 0-1000. Creates A Time Gap Between Chapters
+			  To Prevent Frame Repeats When Using Aggressive Mode. Default: 40
+	-EditionIndex	- Manually Select Chapter Edition Index. 0-99. Default: N/A
+	-Help		- Show Script Information And Usage, Then Exit. Default: False
 
 "@
 	exit
@@ -501,7 +578,7 @@ function Set-Codecs ($boolCopyMode, $strVideoCodec, $strAudioCodec, $strSubCodec
 		$strSubCodec = 'copy'
 		$intAudioBitrate = 64
 		
-		Write-Host -ForegroundColor Yellow "Warning: Codec Copy Mode Enabled. This Will Probably Cause Playback Problems.`n"
+		Write-Host "Warning: Codec Copy Mode Enabled. This Can Cause Playback / Decoding Problems.`n"
 	}
 	
 	if ($intAudioBitrate -eq $null) {
@@ -523,7 +600,7 @@ function Set-Codecs ($boolCopyMode, $strVideoCodec, $strAudioCodec, $strSubCodec
 	}
 	else {
 		if ($strAudioCodec -eq 'flac') {
-			Write-Host -ForegroundColor Yellow ("Warning: Audio Bitrate Does Not Apply When Using The FLAC Codec.`n" + `
+			Write-Host ("Warning: Audio Bitrate Does Not Apply When Using The FLAC Codec.`n" + `
 			"Please Use AAC or AC3 Instead.`n")
 		}
 	}
@@ -810,7 +887,7 @@ function Check-VideoCodec ($strVideoCodec) {
 }
 
 function Check-SubCodec ($strSubCodec) {
-	$arrValid = @('ass')
+	$arrValid = @('ass','srt')
 	
 	if (!$strSubCodec) {
 		Write-Host ("Subtitle Codec Is Not Defined. Valid Codecs:`n" + ($arrValid -join ', '))
@@ -858,9 +935,23 @@ function ConvertFrom-Sexagesimal ($strSexTime) {
 }
 
 function Cleanup-Files ($arrOutputFiles, $strChapterFile, $strMmgOutputFile, $arrSubInfo) {
-	foreach ($strOutputFile in $arrOutputFiles) {
-		if (Test-Path -LiteralPath $strOutputFile) {
-			Remove-Item -LiteralPath $strOutputFile -ErrorAction SilentlyContinue
+	if($arrOutputFiles) {
+		foreach ($strOutputFile in $arrOutputFiles) {
+			if ($strOutputFile) {
+				if (Test-Path -LiteralPath $strOutputFile) {
+					Remove-Item -LiteralPath $strOutputFile -ErrorAction SilentlyContinue
+				}
+			}
+		}
+	}
+	
+	if ($arrSubInfo) {
+		foreach ($hashSubInfo in $arrSubInfo) {
+			if ($hashSubInfo.File) {
+				if (Test-Path -LiteralPath $hashSubInfo.File) {
+					Remove-Item -LiteralPath $hashSubInfo.File -ErrorAction SilentlyContinue
+				}
+			}
 		}
 	}
 	
@@ -875,12 +966,6 @@ function Cleanup-Files ($arrOutputFiles, $strChapterFile, $strMmgOutputFile, $ar
 			Remove-Item -LiteralPath $strMmgOutputFile -ErrorAction SilentlyContinue
 		}
 	}
-	
-	foreach ($hashSubInfo in $arrSubInfo) {
-		if (Test-Path -LiteralPath $hashSubInfo.File) {
-			Remove-Item -LiteralPath $hashSubInfo.File -ErrorAction SilentlyContinue
-		}
-	}	
 }
 
 function Check-OffsetTime ($strOffsetTime) {

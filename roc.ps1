@@ -12,7 +12,8 @@ Param (
 	[string]$AudioCodec = 'flac',
 	[string]$SubCodec = 'ass',
 	[switch]$Aggressive = $false,
-	[string]$Offset = '40'
+	[string]$Offset = '40',
+	[string]$EditionIndex = ''
 )
 
 #set version
@@ -46,6 +47,7 @@ $strSubCodec = Check-SubCodec $SubCodec
 $intAudioBitrate = Check-AudioBitrate $AudioBitrate
 $floatOffsetTime = Check-OffsetTime $Offset
 $boolAggressive = $Aggressive
+$intChapEdition = Check-ChapEdition $EditionIndex
 
 #get a list of input files
 $listFiles = Get-Files $InputPath $true $true
@@ -74,7 +76,7 @@ try {
 		[xml]$xmlChapterInfo = .\bin\mkvextract.exe $objFile.FullName chapters -
 
 		#get the default chapter edition entry
-		$xmlChapterInfo = Get-DefaultEdition $xmlChapterInfo
+		$xmlChapterInfo = Get-ChapEdition $xmlChapterInfo $intChapEdition
 
 		#make a hash table referencing external segment files by their segment id
 		$hashSegmentFiles = Generate-FileSegmentHash $objFile
@@ -114,11 +116,8 @@ try {
 		#tidy up temp files
 		Cleanup-Files $arrOutputFiles $strChapterFile $null $null
 		
-		#get file info for remuxing
-		$jsonFileInfo = .\bin\mkvmerge -J $strMmgOutputFile | ConvertFrom-Json
-		
 		#make a list of subtitle info
-		$arrSubInfo = Get-SubInfo $jsonFileInfo $strTempPath
+		$arrSubInfo = Get-SubInfo $strMmgOutputFile $strTempPath
 		
 		#define the output file name
 		$strOutputFile = $strOutputPath + '\' + $objFile.BaseName + '.mkv'
@@ -141,7 +140,7 @@ try {
 }
 catch {
 	#show error messages
-	Write-Host -ForegroundColor Yellow ("Error: Caught Exception At Line " + `
+	Write-Host ("Error: Caught Exception At Line " + `
 	$_.InvocationInfo.ScriptLineNumber + ":`n" + $_.Exception.Message)
 
 	#tidy up temp files
