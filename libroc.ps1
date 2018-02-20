@@ -96,37 +96,65 @@ function Encode-Segments ($arrEncCmds, $hashCodecs, $arrOutputFiles) {
 
 		Write-Host ("Processing Segment $intCounter of $intTotalChunks Duration: $strDuration Output Range: " + `
 		"$strStartProg - $strEndProg Source: $strSource")
-
+		
 		#avoid seeking when possible, as ffmpeg seems to be buggy sometimes
 		if ($floatStartTime -eq 0.0) {
 			.\bin\ffmpeg.exe -v error -stats -y -i $hashCmd.File -t $floatDuration `
-			-map 0 -map -0:t? -map -0:d? -map_chapters -0 -map_metadata -0 `
-			-c:v $hashCodecs.Video -c:a $hashCodecs.Audio -c:s $hashCodecs.Sub `
-			-preset:v $strPreset -crf $intCrf -x264opts stitchable=1 -max_muxing_queue_size 4000 -b:a $hashCodecs.AudioBitrate -vf scale=312:176 $strOutputFile	
+			-map 0 -map_chapters -1 -c:v $hashCodecs.Video -c:a $hashCodecs.Audio -c:s $hashCodecs.Sub -preset:v $strPreset -crf $intCrf `
+			-x264opts stitchable=1 -max_muxing_queue_size 4000 -b:a $hashCodecs.AudioBitrate $strOutputFile
 		}
 		#otherwise, we have to use seeking, seek a bit backwards, and decode that bit until we get to the start point
 		else {
 			.\bin\ffmpeg.exe -v error -stats -y -ss $floatHybridSeek -i $hashCmd.File -ss $floatSeekOffset -t $floatDuration `
-			-map 0 -map -0:t? -map -0:d? -map_chapters -0 -map_metadata -0 `
-			-c:v $hashCodecs.Video -c:a $hashCodecs.Audio -c:s $hashCodecs.Sub `
-			-preset:v $strPreset -crf $intCrf -x264opts stitchable=1 -max_muxing_queue_size 4000 -b:a $hashCodecs.AudioBitrate -vf scale=312:176 $strOutputFile
+			-map 0 -map_chapters -1 -c:v $hashCodecs.Video -c:a $hashCodecs.Audio -c:s $hashCodecs.Sub -preset:v $strPreset -crf $intCrf `
+			-x264opts stitchable=1 -max_muxing_queue_size 4000 -b:a $hashCodecs.AudioBitrate $strOutputFile
 		}
 
 		$intCounter++
 	}
 }
 
-function Merge-Segments ($arrOutputFiles, $strMkvMergeOutputFile, $strChapterFile) {
+function Merge-Segments ($arrOutputFiles, $strMmgOutputFile, $strChapterFile, $strInputFile) {
 	#Make an expression string that mkvmerge can run
 	Write-Host "Appending Segments. Please Wait..."
-	$strMkvMerge = ".\bin\mkvmerge.exe --output '$strMkvMergeOutputFile' --chapters '$strChapterFile' " + `
-	"-T -M --no-chapters --no-global-tags " + ($arrOutputFiles -join ' + -T -M --no-chapters --no-global-tags ') + `
-	(" -A -D -S -B --no-chapters '" + $objFile.FullName + "'") + ' | Out-Null'
+	$strMkvMerge = ".\bin\mkvmerge.exe --output '$strMmgOutputFile' --chapters '$strChapterFile' " + `
+	"-A -D -S -B --no-chapters $strInputFile " + ($arrOutputFiles -join ' +  ') + ' | Out-Null'
 	
 	#Use mkvmerge to join all of the output files
 	Invoke-Expression $strMkvMerge
+}
 
-	Write-Host "Processing Complete.`n"
+function Remux-Subs ($strOutputFile, $arrSubInfo, $strMmgOutputFile) {
+	$arrAssFiles = @()
+	foreach ($hashSubInfo in $arrSubInfo) {
+			$arrAssFiles = $arrAssFiles + $hashSubInfo.File
+			$strMkvExt = ".\bin\mkvextract.exe '$strMmgOutputFile' tracks " + $hashSubInfo.Index + ":'" + $hashSubInfo.File + "' | Out-Null"
+			
+			Invoke-Expression $strMkvExt
+		}
+	
+	$strMkvMerge = ".\bin\mkvmerge.exe --output '$strOutputFile' -S $strMmgOutputFile " + ($arrAssFiles -join ' ') + ' | Out-Null'
+	
+	Write-Host "Remuxing Subtitles..."
+	
+	#Use mkvmerge to join all of the output files
+	Invoke-Expression $strMkvMerge
+}
+
+function Get-SubInfo ($jsonFileInfo, $strTempPath) {
+	$intCount = 0
+	$arrAssInfo = @()
+	foreach ($jsonProperties in $jsonFileInfo.tracks.properties) {
+		if ($jsonProperties.codec_id -eq 'S_TEXT/ASS') {
+			$arrAssInfo = $arrAssInfo + @{
+				Index = $intCount
+				File = $strTempPath + '\' + (Generate-RandomString) + '.ass'
+			}
+		}
+		$intCount++
+	}
+	
+	return $arrAssInfo
 }
 
 function Show-Version ($SetupOnly, $RocSession, $strVersion) {
@@ -445,7 +473,7 @@ Options:
 	-Copy		- Copies Segments. Very Fast, But May Cause Playback Problems. Default: False
 	-VideoCodec	- Video Codec. libx264, libx265. Default: libx264
 	-AudioCodec	- Audio Codec. flac, aac, ac3, vorbis. Default: flac
-	-SubCodec	- Subtitle Codec. ass, srt. Default: ass
+	-SubCodec	- Subtitle Codec. ass. Default: ass
 	-AudioBitrate	- Audio Bitrate (kbps). Integer. 64-640.
 			  Defaults: flac: N/A, aac: 320, ac3: 640, vorbis: 320
 	-Aggressive	- Aggressive Segment Detection. Useful With Repetitve / Non-Standard Chapter Layouts.
@@ -782,7 +810,7 @@ function Check-VideoCodec ($strVideoCodec) {
 }
 
 function Check-SubCodec ($strSubCodec) {
-	$arrValid = @('ass', 'srt')
+	$arrValid = @('ass')
 	
 	if (!$strSubCodec) {
 		Write-Host ("Subtitle Codec Is Not Defined. Valid Codecs:`n" + ($arrValid -join ', '))
@@ -829,7 +857,7 @@ function ConvertFrom-Sexagesimal ($strSexTime) {
 	return $floatTime
 }
 
-function Cleanup-Files ($arrOutputFiles, $strChapterFile) {
+function Cleanup-Files ($arrOutputFiles, $strChapterFile, $strMmgOutputFile, $arrSubInfo) {
 	foreach ($strOutputFile in $arrOutputFiles) {
 		if (Test-Path -LiteralPath $strOutputFile) {
 			Remove-Item -LiteralPath $strOutputFile -ErrorAction SilentlyContinue
@@ -837,8 +865,22 @@ function Cleanup-Files ($arrOutputFiles, $strChapterFile) {
 	}
 	
 	if ($strChapterFile) {
-		Remove-Item -LiteralPath $strChapterFile -ErrorAction SilentlyContinue
+		if (Test-Path -LiteralPath $strChapterFile) {
+			Remove-Item -LiteralPath $strChapterFile -ErrorAction SilentlyContinue
+		}
 	}
+	
+	if ($strMmgOutputFile) {
+		if (Test-Path -LiteralPath $strMmgOutputFile) {
+			Remove-Item -LiteralPath $strMmgOutputFile -ErrorAction SilentlyContinue
+		}
+	}
+	
+	foreach ($hashSubInfo in $arrSubInfo) {
+		if (Test-Path -LiteralPath $hashSubInfo.File) {
+			Remove-Item -LiteralPath $hashSubInfo.File -ErrorAction SilentlyContinue
+		}
+	}	
 }
 
 function Check-OffsetTime ($strOffsetTime) {

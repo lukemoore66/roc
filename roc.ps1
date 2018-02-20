@@ -105,19 +105,38 @@ try {
 		#use ffmpeg to run the encode instructions
 		Encode-Segments $arrEncCmds $hashCodecs $arrOutputFiles
 
-		#set the output file name for mkvmerge
-		$strMkvMergeOutputFile = $strOutputPath + '\' + $objFile.BaseName + '.mkv'
+		#set the mkvmerge output file name
+		$strMmgOutputFile = $strTempPath + '\' + (Generate-RandomString) + '.mkv'
 
 		#merge the segments with mkvmerge
-		Merge-Segments $arrOutputFiles $strMkvMergeOutputFile $strChapterFile
-
+		Merge-Segments $arrOutputFiles $strMmgOutputFile $strChapterFile $objFile.FullName
+		
 		#tidy up temp files
-		Cleanup-Files $arrOutputFiles $strChapterFile
+		Cleanup-Files $arrOutputFiles $strChapterFile $null $null
+		
+		#get file info for remuxing
+		$jsonFileInfo = .\bin\mkvmerge -J $strMmgOutputFile | ConvertFrom-Json
+		
+		#make a list of subtitle info
+		$arrSubInfo = Get-SubInfo $jsonFileInfo $strTempPath
+		
+		#define the output file name
+		$strOutputFile = $strOutputPath + '\' + $objFile.BaseName + '.mkv'
+		
+		#remux the file
+		Remux-Subs $strOutputFile $arrSubInfo $strMmgOutputFile
+		
+		#tidy up temp files
+		Cleanup-Files $arrOutputFiles $strChapterFile $strMmgOutputFile $arrSubInfo
 
 		#Increment the file counter
 		$intFileCounter++
+		
+		#show a file complete message
+		Write-Host "Processing Complete."
 	}
-
+	
+	#show completed message
 	Write-Host "Script Complete."
 }
 catch {
@@ -126,7 +145,7 @@ catch {
 	$_.InvocationInfo.ScriptLineNumber + ":`n" + $_.Exception.Message)
 
 	#tidy up temp files
-	Cleanup-Files $arrOutputFiles $strChapterFile
+	Cleanup-Files $arrOutputFiles $strChapterFile $strMmgOutputFile $arrSubInfo
 
 	#set the window title back to normal if needed
 	Set-WindowTitle $strInitialWinTitle $RocSession
@@ -135,7 +154,7 @@ catch {
 }
 finally {
 	#tidy up temp files
-	Cleanup-Files $arrOutputFiles $strChapterFile
+	Cleanup-Files $arrOutputFiles $strChapterFile $strMmgOutputFile $arrSubInfo
 
 	#set the window title back to normal if needed
 	Set-WindowTitle $strInitialWinTitle $RocSession
