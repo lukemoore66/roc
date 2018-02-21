@@ -1,3 +1,54 @@
+function Encode-Segments ($arrEncCmds, $hashCodecs, $arrOutputFiles) {
+	Write-Host "Encoding...`nPress Ctrl + c to exit.`n"
+	
+	$floatSeekOffset = 15.0
+	$intTotalChunks = $arrEncCmds.Count
+	
+	$intCounter = 1
+	$floatProg = 0.0
+	foreach ($hashCmd in $arrEncCmds) {
+		$floatStartTime = $hashCmd.Start
+		$floatEndTime = $hashCmd.End
+		$floatDuration = $floatEndTime - $floatStartTime
+		$strOutputFile = $arrOutputFiles[$intCounter - 1]
+
+		$strDuration = ConvertTo-Sexagesimal $floatDuration
+		$strStartProg = ConvertTo-Sexagesimal $floatProg
+		$floatProg = $floatProg + $floatDuration
+		$strEndProg = ConvertTo-Sexagesimal $floatProg
+
+		if ($hashCmd.File -eq $objFile.FullName) {
+			$strSource = "Main File"
+		}
+		else {
+			$strSource = "External File"
+		}
+
+		$floatHybridSeek = $floatStartTime - $floatSeekOffset
+		if ($floatHybridSeek -le 0.0) {
+			$floatStartTime = 0.0
+		}
+
+		Write-Host ("Processing Segment $intCounter of $intTotalChunks Duration: $strDuration Output Range: " + `
+		"$strStartProg - $strEndProg Source: $strSource")
+		
+		#avoid seeking when possible, as ffmpeg seems to be buggy sometimes
+		if ($floatStartTime -eq 0.0) {
+			.\bin\ffmpeg.exe -v error -stats -y -i $hashCmd.File -t $floatDuration `
+			-map 0 -map_chapters -1 -c:v $hashCodecs.Video -c:a $hashCodecs.Audio -c:s $hashCodecs.Sub -preset:v $strPreset -crf $intCrf `
+			-x264opts stitchable=1 -max_muxing_queue_size 4000 -b:a $hashCodecs.AudioBitrate $strOutputFile
+		}
+		#otherwise, we have to use seeking, seek a bit backwards, and decode that bit until we get to the start point
+		else {
+			.\bin\ffmpeg.exe -v error -stats -y -ss $floatHybridSeek -i $hashCmd.File -ss $floatSeekOffset -t $floatDuration `
+			-map 0 -map_chapters -1 -c:v $hashCodecs.Video -c:a $hashCodecs.Audio -c:s $hashCodecs.Sub -preset:v $strPreset -crf $intCrf `
+			-x264opts stitchable=1 -max_muxing_queue_size 4000 -b:a $hashCodecs.AudioBitrate $strOutputFile
+		}
+
+		$intCounter++
+	}
+}
+
 function Get-EncCmdsAggressive ($xmlChapterInfo, $hashSegmentFiles, $floatOffsetTime) {
 	#aggressive mode encode instructions
 	#initialize an array for storing encode instructions
@@ -52,6 +103,9 @@ function Fix-ChapAggressive ($xmlChapterInfo, $floatOffsetTime) {
 		}
 		
 		#set a new UID for the current chapter atom
+		if (!$nodeChapAtom.ChapterUID) {
+			$nodeChapAtom.AppendChild($xmlChapterInfo.CreateElement('ChapterUID')) | Out-Null
+		}
 		$nodeChapAtom.ChapterUID = Generate-UID
 		
 		$intCount++
@@ -67,57 +121,6 @@ function Fix-ChapAggressive ($xmlChapterInfo, $floatOffsetTime) {
 	$xmlChapterInfo.Chapters.EditionEntry.EditionFlagOrdered = '0'
 	
 	return $xmlChapterInfo
-}
-
-function Encode-Segments ($arrEncCmds, $hashCodecs, $arrOutputFiles) {
-	Write-Host "Encoding...`nPress Ctrl + c to exit.`n"
-	
-	$floatSeekOffset = 15.0
-	$intTotalChunks = $arrEncCmds.Count
-	
-	$intCounter = 1
-	$floatProg = 0.0
-	foreach ($hashCmd in $arrEncCmds) {
-		$floatStartTime = $hashCmd.Start
-		$floatEndTime = $hashCmd.End
-		$floatDuration = $floatEndTime - $floatStartTime
-		$strOutputFile = $arrOutputFiles[$intCounter - 1]
-
-		$strDuration = ConvertTo-Sexagesimal $floatDuration
-		$strStartProg = ConvertTo-Sexagesimal $floatProg
-		$floatProg = $floatProg + $floatDuration
-		$strEndProg = ConvertTo-Sexagesimal $floatProg
-
-		if ($hashCmd.File -eq $objFile.FullName) {
-			$strSource = "Main File"
-		}
-		else {
-			$strSource = "External File"
-		}
-
-		$floatHybridSeek = $floatStartTime - $floatSeekOffset
-		if ($floatHybridSeek -le 0.0) {
-			$floatStartTime = 0.0
-		}
-
-		Write-Host ("Processing Segment $intCounter of $intTotalChunks Duration: $strDuration Output Range: " + `
-		"$strStartProg - $strEndProg Source: $strSource")
-		
-		#avoid seeking when possible, as ffmpeg seems to be buggy sometimes
-		if ($floatStartTime -eq 0.0) {
-			.\bin\ffmpeg.exe -v error -stats -y -i $hashCmd.File -t $floatDuration `
-			-map 0 -map_chapters -1 -c:v $hashCodecs.Video -c:a $hashCodecs.Audio -c:s $hashCodecs.Sub -preset:v $strPreset -crf $intCrf `
-			-x264opts stitchable=1 -max_muxing_queue_size 4000 -b:a $hashCodecs.AudioBitrate $strOutputFile
-		}
-		#otherwise, we have to use seeking, seek a bit backwards, and decode that bit until we get to the start point
-		else {
-			.\bin\ffmpeg.exe -v error -stats -y -ss $floatHybridSeek -i $hashCmd.File -ss $floatSeekOffset -t $floatDuration `
-			-map 0 -map_chapters -1 -c:v $hashCodecs.Video -c:a $hashCodecs.Audio -c:s $hashCodecs.Sub -preset:v $strPreset -crf $intCrf `
-			-x264opts stitchable=1 -max_muxing_queue_size 4000 -b:a $hashCodecs.AudioBitrate $strOutputFile
-		}
-
-		$intCounter++
-	}
 }
 
 function Merge-Segments ($arrOutputFiles, $strMmgOutputFile, $strChapterFile, $strInputFile) {
@@ -277,9 +280,23 @@ function Get-EncodeCommands ($xmlChapterInfo, $hashSegmentFiles, $boolAggressive
 }
 
 function Remove-InvalidChapters ($xmlChapterInfo, $hashSegmentFiles) {
+	$arrUIDs = @()
 	$arrMissAtoms = @()
 	$intCount = 0
 	foreach ($nodeChapAtom in $xmlChapterInfo.Chapters.EditionEntry.ChapterAtom) {
+		#if the current chapter has a UID
+		if ($nodeChapterAtom.ChapterUID) {
+			#if the UID array contains the current chapter's UID
+			if ($arrUIDs -contains $nodeChapAtom) {
+				#remove it
+				$nodeChapAtom.ParentNode.RemoveChild($nodeChapAtom) | Out-Null
+				
+				#show a warning
+				Write-Host ("Warning: Duplicate UID Found For Chapter: " + ($intCount + 1) + `
+				"`nThis Chapter Will Be Skipped.`n")
+			}
+		}
+		
 		#if an sid exists
 		if ($nodeChapAtom.ChapterSegmentUID) {
 			#if the file it references does not exist
@@ -394,6 +411,9 @@ function Fix-Chapters ($xmlChapterInfo, $boolAggressive, $floatOffsetTime) {
 		}
 		
 		#set a new UID for the current chapter atom
+		if (!$nodeChapAtom.ChapterUID) {
+			$nodeChapAtom.AppendChild($xmlChapterInfo.CreateElement('ChapterUID')) | Out-Null
+		}
 		$nodeChapAtom.ChapterUID = Generate-UID
 
 		#increment the index counter
@@ -516,6 +536,24 @@ function Get-ChapEdition ($xmlChapterInfo, $intInputIndex) {
 	}
 	
 	return $xmlChapterInfo
+}
+
+function Show-SkippedFiles ($arrCompletedFiles, $listFiles) {
+	#initialize an array to store skipped files
+	$arrSkippedFiles = @()
+	
+	#step through each file in the input file list
+	foreach ($objFile in $listFiles) {
+		#if the completed list does not contain the input list FullName
+		if ($arrCompletedFiles -notcontains $objFile.FullName) {
+			#add it to the incomplete array
+			$arrSkippedFiles = $arrSkippedFiles + $objFile.Name
+		}
+	}
+	
+	if ($arrSkippedFiles.Count -ne 0) {
+		Write-Host ("The following File(s) Were Skipped:`n" + $arrSkippedFiles)
+	}
 }
 
 function Get-TotalDuration ($arrEncCmds) {

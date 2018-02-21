@@ -52,17 +52,21 @@ $intChapEdition = Check-ChapEdition $EditionIndex
 #get a list of input files
 $listFiles = Get-Files $InputPath $true $true
 
-#show the list and total file count
-Write-Host (($listFiles | % {Write-Host $_.Name}) + "`n" + @($listFiles).Count + `
-" File(s) Found.`n")
+#show the input file list and total count
+Write-Host "`nInput File(s):`n"; Write-Host (($listFiles | % {Write-Host $_.Name}) + "`n" + `
+@($listFiles).Count + " File(s) Found.`n")
 
 #set up the codecs
 $hashCodecs = Set-Codecs $Copy $strVideoCodec $strAudioCodec $strSubCodec $intAudioBitrate
 
-#put everything in a try loop to catch errors and clean up temp files easily
+#put everything in a try block to catch errors and clean up temp files easily
 try {
-	#init a counter so we know which file we are up to
+	#initialize an array to store completed files
+	$arrCompletedFiles = @()
+	
+	#initialize a counter so we know which file we are up to
 	$intFileCounter = 1
+	
 	#start a loop to iterate though the list of files
 	foreach ($objFile in $listFiles) {
 		#write a progress message to the screen
@@ -132,12 +136,18 @@ try {
 		#tidy up temp files
 		Cleanup-Files $arrOutputFiles $strChapterFile $strMmgOutputFile $arrSubInfo
 
+		#add the file to the completed file list
+		$arrCompletedFiles = $objFile.FullName
+		
 		#Increment the file counter
 		$intFileCounter++
 		
 		#show a file complete message
 		Write-Host "Processing Complete."
 	}
+	
+	#show any files that were skipped
+	Show-SkippedFiles $arrCompletedFiles $listFiles
 	
 	#show completed message
 	Write-Host "Script Complete."
