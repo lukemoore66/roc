@@ -1,4 +1,11 @@
 function Encode-Segments ($arrEncCmds, $hashCodecs, $arrOutputFiles) {
+	#if there is only one encode command
+	if (@($arrEncCmds).Count -le 1) {
+		#skip the file
+		Write-Host "Input File Does Not Appear To Have Any Valid Segments And/Or Chapters.`nThis File Will Be Skipped.`n"
+		continue
+	}
+	
 	Write-Host "Encoding...`nPress Ctrl + c to exit.`n"
 	
 	$floatSeekOffset = 15.0
@@ -203,6 +210,10 @@ function Get-EncodeCommands ($xmlChapterInfo, $hashSegmentFiles, $boolAggressive
 	#make an array of encode commands for ffmpeg to process
 	#Initialize an array of encode commands
 	$arrEncCmds = @()
+	
+	#Clear the start and end variables
+	$floatEncStart = $null
+	$floatEncEnd = $null
 
 	#initialize an index counter to zero
 	$intCount = 0
@@ -552,7 +563,7 @@ function Show-SkippedFiles ($arrCompletedFiles, $listFiles) {
 	}
 	
 	if ($arrSkippedFiles.Count -ne 0) {
-		Write-Host ("The following File(s) Were Skipped:`n" + $arrSkippedFiles)
+		Write-Host ("The following File(s) Were Skipped:`n`n" + $arrSkippedFiles + "`n")
 	}
 }
 
@@ -735,7 +746,6 @@ function Generate-UID {
 	$intNumOfChars=20
 	$arrInput=@(0..9)
 	
-	$intWhileCount = 0
 	while ($true) {
 		[string]$strOutput=$null
 		$intCount=1
@@ -760,10 +770,7 @@ function Generate-UID {
 		if ($strResult -eq '-1') {
 			return $strOutput
 		}
-		
-		$intWhileCount++
-	}
-	
+	}	
 }
 
 function Get-Files ($InputPath, $boolInit, $boolExclude) {
@@ -1016,7 +1023,7 @@ function Check-OffsetTime ($strOffsetTime) {
 		exit
 	}
 	
-	#Make Sure The CRF Is Set To An Integer Between 1 and 51
+	#make sure the offset is set to an integer between 0 and 1000
 	try {
 		$strOffsetTime = 0 + ([Math]::Round($strOffsetTime))
 	}

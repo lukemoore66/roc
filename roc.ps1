@@ -91,7 +91,7 @@ try {
 
 		#remove any invalid chapters
 		$xmlChapterInfo = Remove-InvalidChapters $xmlChapterInfo $hashSegmentFiles
-
+		
 		#make an array of hashes containing encode commands for ffmpeg
 		$arrEncCmds = Get-EncodeCommands $xmlChapterInfo $hashSegmentFiles `
 		$boolAggressive $floatOffsetTime
