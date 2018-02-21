@@ -52,6 +52,10 @@ $intChapEdition = Check-ChapEdition $EditionIndex
 #get a list of input files
 $listFiles = Get-Files $InputPath $true $true
 
+#show the list and total file count
+Write-Host (($listFiles | % {Write-Host $_.Name}) + "`n" + @($listFiles).Count + `
+" File(s) Found.`n")
+
 #set up the codecs
 $hashCodecs = Set-Codecs $Copy $strVideoCodec $strAudioCodec $strSubCodec $intAudioBitrate
 
