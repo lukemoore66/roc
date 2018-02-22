@@ -43,13 +43,13 @@ function Encode-Segments ($arrEncCmds, $hashCodecs, $arrOutputFiles) {
 		if ($floatStartTime -eq 0.0) {
 			.\bin\ffmpeg.exe -v error -stats -y -i $hashCmd.File -t $floatDuration `
 			-map 0 -map_chapters -1 -c:v $hashCodecs.Video -c:a $hashCodecs.Audio -c:s $hashCodecs.Sub -preset:v $strPreset -crf $intCrf `
-			-x264opts stitchable=1 -max_muxing_queue_size 4000 -b:a $hashCodecs.AudioBitrate $strOutputFile
+			-x264opts stitchable=1 -max_muxing_queue_size 4000 -b:a $hashCodecs.AudioBitrate -vf scale=624:352 $strOutputFile
 		}
 		#otherwise, we have to use seeking, seek a bit backwards, and decode that bit until we get to the start point
 		else {
 			.\bin\ffmpeg.exe -v error -stats -y -ss $floatHybridSeek -i $hashCmd.File -ss $floatSeekOffset -t $floatDuration `
 			-map 0 -map_chapters -1 -c:v $hashCodecs.Video -c:a $hashCodecs.Audio -c:s $hashCodecs.Sub -preset:v $strPreset -crf $intCrf `
-			-x264opts stitchable=1 -max_muxing_queue_size 4000 -b:a $hashCodecs.AudioBitrate $strOutputFile
+			-x264opts stitchable=1 -max_muxing_queue_size 4000 -b:a $hashCodecs.AudioBitrate -vf scale=624:352 $strOutputFile
 		}
 
 		$intCounter++
@@ -131,25 +131,45 @@ function Fix-ChapAggressive ($xmlChapterInfo, $floatOffsetTime) {
 }
 
 function Merge-Segments ($arrOutputFiles, $strMmgOutputFile, $strChapterFile, $strInputFile) {
+	#escape backticks if needed
+	$strMmgOutputFile = Escape-Backticks $strMmgOutputFile
+	$strChapterFile = Escape-Backticks $strChapterFile
+	$strInputFile = Escape-Backticks $strInputFile
+	$arrEscOutputFiles = @()
+	$arrOutputFiles | % {$arrEscOutputFiles += (Escape-Backticks $_)}
+	
 	#Make an expression string that mkvmerge can run
 	Write-Host "Appending Segments..."
-	$strMkvMerge = ".\bin\mkvmerge.exe --output '$strMmgOutputFile' --chapters '$strChapterFile' " + `
-	"-A -D -S -B --no-chapters '$strInputFile' '" + ($arrOutputFiles -join "' + '") + "' | Out-Null"
+	$strMkvMerge = ".\bin\mkvmerge.exe --output ""$strMmgOutputFile"" --chapters ""$strChapterFile"" " + `
+	"-A -D -S -B --no-chapters ""$strInputFile"" """ + ($arrEscOutputFiles -join """ + """) + """ | Out-Null"
 	
 	#Use mkvmerge to join all of the output files
 	Invoke-Expression $strMkvMerge
 }
 
 function Remux-Subs ($strOutputFile, $arrSubInfo, $strMmgOutputFile) {
+	#escape backticks if needed
+	$strOutputFile = Escape-Backticks $strOutputFile
+	$strMmgOutputFile = Escape-Backticks $strMmgOutputFile
+	
 	$arrSubFiles = @()
 	foreach ($hashSubInfo in $arrSubInfo) {
+			#escape backticks if needed
+			$strSubFile = Escape-Backticks $hashSubInfo.File
+			
 			$arrSubFiles = $arrSubFiles + $hashSubInfo.File
-			$strMkvExt = ".\bin\mkvextract.exe '$strMmgOutputFile' tracks " + $hashSubInfo.Index + ":'" + $hashSubInfo.File + "' | Out-Null"
+			$strMkvExt = ".\bin\mkvextract.exe ""$strMmgOutputFile"" tracks " + $hashSubInfo.Index + ":""" + $strSubFile + `
+			""" | Out-Null"
 			
 			Invoke-Expression $strMkvExt
 		}
 	
-	$strMkvMerge = ".\bin\mkvmerge.exe --output '$strOutputFile' -S '$strMmgOutputFile' '" + ($arrSubFiles -join "' '") + "' | Out-Null"
+	#escape backticks if needed
+	$arrEscSubFiles = @()
+	$arrSubFiles | % {$arrEscSubFiles += (Escape-Backticks $_)}
+	
+	$strMkvMerge = ".\bin\mkvmerge.exe --output ""$strOutputFile"" -S ""$strMmgOutputFile"" """ + ($arrEscSubFiles -join """ """) + `
+	""" | Out-Null"
 	
 	Write-Host "Remuxing Subtitles..."
 	
@@ -1040,4 +1060,20 @@ function Check-OffsetTime ($strOffsetTime) {
 		Write-Host "Offset Time Is Invalid. Please Enter An Integer Ranging From $intMin-$intMax."
 		exit
 	}
+}
+
+function Escape-Backticks ($strInput) {
+	#Escape Any Backticks In The Input String
+	$strOutput=$strInput.Replace('`','``')
+
+	#Return The Result
+	return $strOutput
+}
+
+function Unescape-Backticks ($strInput) {
+	#Unescape Any Backticks In The Input String
+	$strOutput=$strInput.Replace('``','`')
+
+	#Return The Result
+	return $strOutput
 }
