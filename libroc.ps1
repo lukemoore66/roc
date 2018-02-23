@@ -148,21 +148,30 @@ function Merge-Segments ($arrOutputFiles, $strMmgOutputFile, $strChapterFile, $s
 }
 
 function Remux-Subs ($strOutputFile, $arrSubInfo, $strMmgOutputFile) {
+	#if there are no subtitles
+	if ($arrSubInfo.Count -eq 0) {
+		#simply move / rename the the file
+		Move-Item -Force -LiteralPath $strMmgOutputFile -Destination $strOutputFile
+		
+		#return to the main script
+		return
+	}
+	
 	#escape backticks if needed
 	$strOutputFile = Escape-Backticks $strOutputFile
 	$strMmgOutputFile = Escape-Backticks $strMmgOutputFile
 	
 	$arrSubFiles = @()
 	foreach ($hashSubInfo in $arrSubInfo) {
-			#escape backticks if needed
-			$strSubFile = Escape-Backticks $hashSubInfo.File
-			
-			$arrSubFiles = $arrSubFiles + $hashSubInfo.File
-			$strMkvExt = ".\bin\mkvextract.exe ""$strMmgOutputFile"" tracks " + $hashSubInfo.Index + ":""" + $strSubFile + `
-			""" | Out-Null"
-			
-			Invoke-Expression $strMkvExt
-		}
+		#escape backticks if needed
+		$strSubFile = Escape-Backticks $hashSubInfo.File
+		
+		$arrSubFiles = $arrSubFiles + $hashSubInfo.File
+		$strMkvExt = ".\bin\mkvextract.exe ""$strMmgOutputFile"" tracks " + $hashSubInfo.Index + ":""" + $strSubFile + `
+		""" | Out-Null"
+		
+		Invoke-Expression $strMkvExt
+	}
 	
 	#escape backticks if needed
 	$arrEscSubFiles = @()
@@ -1076,4 +1085,14 @@ function Unescape-Backticks ($strInput) {
 
 	#Return The Result
 	return $strOutput
+}
+
+function Generate-SID {
+	$arrHexValues = @()
+	
+	(0x00..0xff) | % {$arrHexvalues += $_.ToString("x2")}
+	
+	$strSID = (Get-Random -InputObject $arrHexValues -Count 16) -join ''
+	
+	return $strSID
 }
