@@ -65,7 +65,7 @@ try {
 	$arrCompletedFiles = @()
 	
 	#initialize a counter so we know which file we are up to
-	$intFileCounter = 1
+	$script:intFileCounter = 1
 	
 	#start a loop to iterate though the list of files
 	foreach ($objFile in $listFiles) {
@@ -137,10 +137,10 @@ try {
 		Cleanup-Files $arrOutputFiles $strChapterFile $strMmgOutputFile $arrSubInfo
 
 		#add the file to the completed file list
-		$arrCompletedFiles = $objFile.FullName
+		$arrCompletedFiles = $arrCompletedFiles + $objFile.FullName
 		
 		#Increment the file counter
-		$intFileCounter++
+		$script:intFileCounter++
 		
 		#show a file complete message
 		Write-Host "Processing Complete."

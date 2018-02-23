@@ -3,6 +3,14 @@ function Encode-Segments ($arrEncCmds, $hashCodecs, $arrOutputFiles) {
 	if (@($arrEncCmds).Count -le 1) {
 		#skip the file
 		Write-Host "Input File Does Not Appear To Have Any Valid Segments And/Or Chapters.`nThis File Will Be Skipped.`n"
+		
+		#tidy up temp files
+		Cleanup-Files $arrOutputFiles $strChapterFile $strMmgOutputFile $arrSubInfo
+		
+		#increment the file counter
+		$script:intFileCounter++
+		
+		#continue the file processing loop
 		continue
 	}
 	
@@ -572,6 +580,14 @@ function Get-ChapEdition ($xmlChapterInfo, $intInputIndex) {
 	#else, a chapter edition index was not found
 	else {
 		Write-Host "No Ordered Chapter Editions Found. Skipping File."
+		
+		#tidy up temp files
+		Cleanup-Files $arrOutputFiles $strChapterFile $strMmgOutputFile $arrSubInfo
+		
+		#increment the file counter
+		$script:intFileCounter++
+		
+		#continue the file processing loop
 		continue
 	}
 	
@@ -592,7 +608,7 @@ function Show-SkippedFiles ($arrCompletedFiles, $listFiles) {
 	}
 	
 	if ($arrSkippedFiles.Count -ne 0) {
-		Write-Host ("The following File(s) Were Skipped:`n`n" + $arrSkippedFiles + "`n")
+		Write-Host ("The following File(s) Were Skipped:`n`n" + ($arrSkippedFiles -join "`n") + "`n")
 	}
 }
 
