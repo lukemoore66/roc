@@ -1,10 +1,10 @@
-# roc - Remux Ordered Chapters - From Segmented Matroska Files
+# roc - Remove Ordered Chapters From Matroska Files
 
-A PowerShell script that transcodes / remuxes Matroska files that use ordered chapters (e.g. external OP and ED segments) into single Matroska files.
+A PowerShell script that transcodes / remuxes Matroska files that use ordered chapters (e.g. external OP and ED files) into single Matroska files.
 
 ## Getting Started
 
-Click 'Releases' above, pick a version to download, then unzip everything to a folder of your choice and run roc.exe. You will then be presented with a prompt.
+Download the entire git folder i.e. use the 'Clone or Download' button above, then unzip everything to a folder of your choice and run roc.exe. You will then be presented with a prompt.
 
 To begin, type:
 

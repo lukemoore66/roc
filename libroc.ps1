@@ -226,13 +226,13 @@ function Show-Version ($SetupOnly, $RocSession, $strVersion) {
 	if ($SetupOnly) {
 	Set-Variable -Name RocSession -Value $true -Scope 2
 	
-	Write-Host "(roc) - Remove Ordered Chapters $strVersion By d3sim8.`nType 'roc -Help' And Press Enter To Begin.`n"
+	Write-Host "(roc) - Remux Ordered Chapters $strVersion By d3sim8.`nType 'roc -Help' And Press Enter To Begin.`n"
 	
 	exit
 	}
 	else {
 		if (!$RocSession) {
-			Write-Host "(roc) - Remove Ordered Chapters $strVersion By d3sim8.`n"
+			Write-Host "(roc) - Remux Ordered Chapters $strVersion By d3sim8.`n"
 		}
 	}
 }

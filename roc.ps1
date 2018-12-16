@@ -17,7 +17,7 @@ Param (
 )
 
 #set version
-$strVersion = "v0.9-beta 2018"
+$strVersion = "v1.0 2018"
 
 #Import Functions
 . '.\libroc.ps1'
