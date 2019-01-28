@@ -71,7 +71,7 @@ try {
 	foreach ($objFile in $listFiles) {
 		#write a progress message to the screen
 		$strMessage = "Processing File $intFileCounter of " + $listFiles.Count
-		Write-Host (('-' * $strMessage.Length) + "`n$strMessage`n" + ('-' * $strMessage.Length))
+		Write-Host -fore Cyan (('-' * $strMessage.Length) + "`n$strMessage`n" + ('-' * $strMessage.Length))
 
 		#show the input file path
 		Write-Host ("Input File: " + $objFile.FullName + "`n")
@@ -154,7 +154,7 @@ try {
 }
 catch {
 	#show error messages
-	Write-Host ("Error: Caught Exception At Line " + `
+	Write-Host -fore Yellow ("Error: Caught Exception At Line " + `
 	$_.InvocationInfo.ScriptLineNumber + ":`n" + $_.Exception.Message)
 
 	#tidy up temp files
