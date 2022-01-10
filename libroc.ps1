@@ -2,7 +2,7 @@ function Encode-Segments ($arrEncCmds, $hashCodecs, $arrOutputFiles) {
 	#if there is only one encode command
 	if (@($arrEncCmds).Count -le 1) {
 		#skip the file
-		Write-Host -fore Yellow "Input File Does Not Appear To Have Any Valid Segments And/Or Chapters.`nThis File Will Be Skipped.`n"
+		Write-Host "Input File Does Not Appear To Have Any Valid Segments And/Or Chapters.`nThis File Will Be Skipped.`n"
 		
 		#tidy up temp files
 		Cleanup-Files $arrOutputFiles $strChapterFile $strMmgOutputFile $arrSubInfo
@@ -340,7 +340,7 @@ function Remove-InvalidChapters ($xmlChapterInfo, $hashSegmentFiles) {
 				$nodeChapAtom.ParentNode.RemoveChild($nodeChapAtom) | Out-Null
 				
 				#show a warning
-				Write-Host -fore Yellow ("Warning: Duplicate UID Found For Chapter: " + ($intCount + 1) + `
+				Write-Host ("Warning: Duplicate UID Found For Chapter: " + ($intCount + 1) + `
 				"`nThis Chapter Will Be Skipped.`n")
 			}
 		}
@@ -364,11 +364,11 @@ function Remove-InvalidChapters ($xmlChapterInfo, $hashSegmentFiles) {
 	if ($arrMissAtoms.Count -ne 0) {
 		if ($arrMissAtoms.Count -gt 1) {
 		$strChapterAtoms = ($arrMissAtoms[0..($arrMissAtoms.Count - 2)] -join ', ') + ' and ' +  $arrMissAtoms[-1]
-		Write-Host -fore Yellow ("Warning: Missing External Segments For Chapters $strChapterAtoms`n" + `
+		Write-Host ("Warning: Missing External Segments For Chapters $strChapterAtoms`n" + `
 		"These Chapters Will Be Skipped.`n")
 		}
 		else {
-			Write-Host -fore Yellow ("Warning: Missing External Segment For Chapter " + $arrMissAtoms[0] + `
+			Write-Host ("Warning: Missing External Segment For Chapter " + $arrMissAtoms[0] + `
 			"`nThis Chapter Will Be Skipped.`n")
 		}
 	}
@@ -493,7 +493,7 @@ function Check-ChapEdition ($strChapterEdition) {
 	}
 	catch {
 		#Handle The Error
-		Write-Host -fore Yellow "Chapter Edition Index Is Invalid. Please Use An Integer Ranging From $intMin-$intMax"
+		Write-Host "Chapter Edition Index Is Invalid. Please Use An Integer Ranging From $intMin-$intMax"
 		exit
 	}
 	
@@ -502,7 +502,7 @@ function Check-ChapEdition ($strChapterEdition) {
 	}
 	else {
 		#Handle The Error
-		Write-Host -fore Yellow "Chapter Edition Index Is Invalid Please Use An Integer Ranging From $intMin-$intMax"
+		Write-Host "Chapter Edition Index Is Invalid Please Use An Integer Ranging From $intMin-$intMax"
 		exit
 	}
 }
@@ -524,7 +524,7 @@ function Get-ChapEdition ($xmlChapterInfo, $intInputIndex) {
 			#else it does not have ordered chapters
 			else {
 				#show a warning
-				Write-Host -fore Yellow ("Warning: Chapter Edition Index: $intInputIndex Was Not Found.`n" + `
+				Write-Host ("Warning: Chapter Edition Index: $intInputIndex Was Not Found.`n" + `
 				"Automatically Selecting Chapter Edition.`n")
 			}	
 		}
@@ -579,7 +579,7 @@ function Get-ChapEdition ($xmlChapterInfo, $intInputIndex) {
 	}
 	#else, a chapter edition index was not found
 	else {
-		Write-Host -Fore Yellow "No Ordered Chapter Editions Found. Skipping File."
+		Write-Host "No Ordered Chapter Editions Found. Skipping File."
 		
 		#tidy up temp files
 		Cleanup-Files $arrOutputFiles $strChapterFile $strMmgOutputFile $arrSubInfo
@@ -672,7 +672,7 @@ function Set-Codecs ($boolCopyMode, $strVideoCodec, $strAudioCodec, $strSubCodec
 		$strSubCodec = 'copy'
 		$intAudioBitrate = 64
 		
-		Write-Host -fore Yellow "Warning: Codec Copy Mode Enabled. This Can Cause Playback / Decoding Problems.`n"
+		Write-Host "Warning: Codec Copy Mode Enabled. This Can Cause Playback / Decoding Problems.`n"
 	}
 	
 	if ($intAudioBitrate -eq $null) {
@@ -694,7 +694,7 @@ function Set-Codecs ($boolCopyMode, $strVideoCodec, $strAudioCodec, $strSubCodec
 	}
 	else {
 		if ($strAudioCodec -eq 'flac') {
-			Write-Host -fore Yellow ("Warning: Audio Bitrate Does Not Apply When Using The FLAC Codec.`n" + `
+			Write-Host ("Warning: Audio Bitrate Does Not Apply When Using The FLAC Codec.`n" + `
 			"Please Use AAC or AC3 Instead.`n")
 		}
 	}
@@ -722,8 +722,8 @@ function Get-FullPath ($strInput) {
 
 function Check-OutputPath ($strOutputFolder) {
 	if (!$strOutputFolder) {
-	Write-Host -fore Yellow "Output Folder Is Undefined. Try Using The -OutputPath Option."
-	Write-Host -fore Yellow "E.g. roc -OutputPath 'C:\valid\path\to\output'"
+	Write-Host "Output Folder Is Undefined. Try Using The -OutputPath Option."
+	Write-Host "E.g. roc -OutputPath 'C:\valid\path\to\output'"
 	exit
 	}
 	
@@ -760,7 +760,7 @@ function Check-OutputPath ($strOutputFolder) {
 	}
 	else {
 		#Handle The Error
-		Write-Host -fore Yellow "Output Folder: $strOutputFolder`nIs Invalid Or Does Not Exist."
+		Write-Host "Output Folder: $strOutputFolder`nIs Invalid Or Does Not Exist."
 		exit
 	}
 }
@@ -820,15 +820,15 @@ function Generate-UID {
 
 function Get-Files ($InputPath, $boolInit, $boolExclude) {
 	if (!$InputPath) {
-		Write-Host -fore Yellow "Input File/Folder Is Undefined. Try Using The -InputPath Option."
-		Write-Host -fore Yellow "E.g. roc -InputPath 'C:\path\to\matroskafiles'"
+		Write-Host "Input File/Folder Is Undefined. Try Using The -InputPath Option."
+		Write-Host "E.g. roc -InputPath 'C:\path\to\matroskafiles'"
 		exit
 	}
 	
 	if (!(Test-Path -LiteralPath $InputPath)) {
 		$InputPath = $InputPath.Replace('`', '')
 		if (!(Test-Path -LiteralPath $InputPath)) {
-			Write-Host -fore Yellow "Input File/Folder Is Invalid Or Does Not Exist."
+			Write-Host "Input File/Folder Is Invalid Or Does Not Exist."
 			exit
 		}
 	}
@@ -856,7 +856,7 @@ function Get-Files ($InputPath, $boolInit, $boolExclude) {
 	
 	if ($boolInit) {
 		if ($listFiles.Count -eq 0) {
-			Write-Host -fore Yellow "No Matroska Files Found."
+			Write-Host "No Matroska Files Found."
 		}
 	}
 	
@@ -869,7 +869,7 @@ function Check-CRF ($strCrf) {
 	
 	#Show An Error If The Constant Rate Factor Is Undefined
 	if ($strCrf -eq $null) {
-		Write-Host -fore Yellow "Constant Rate Factor Is Not Defined. Please Enter An Integer Ranging From $intMin-$intMax."
+		Write-Host "Constant Rate Factor Is Not Defined. Please Enter An Integer Ranging From $intMin-$intMax."
 		exit
 	}
 	
@@ -878,7 +878,7 @@ function Check-CRF ($strCrf) {
 		$intCrf=0 + ([Math]::Round($strCrf))
 	}
 	catch {
-		Write-Host -fore Yellow "Constant Rate Factor: $strCrf`nIs Invalid. Please Use An Integer Ranging From 0-51"
+		Write-Host "Constant Rate Factor: $strCrf`nIs Invalid. Please Use An Integer Ranging From 0-51"
 		exit
 	}
 	
@@ -887,7 +887,7 @@ function Check-CRF ($strCrf) {
 	}
 	else {
 		#Handle The Error
-		Write-Host -fore Yellow "Constant Rate Factor: $strCrf`nIs Invalid. Please Use An Integer Ranging From 0-51"
+		Write-Host "Constant Rate Factor: $strCrf`nIs Invalid. Please Use An Integer Ranging From 0-51"
 		exit
 	}
 }
@@ -907,8 +907,8 @@ function Check-Preset ($strPreset) {
 	#Otherwise The Preset Is Invalid, Exit The Program
 	else {
 		#Handle The Error
-		Write-Host -fore Yellow "Invalid Preset. Valid Presets:"
-		Write-Host -fore Yellow ($arrValid -join ', ')
+		Write-Host "Invalid Preset. Valid Presets:"
+		Write-Host ($arrValid -join ', ')
 		exit
 	}
 }
@@ -926,7 +926,7 @@ function Check-AudioBitrate ($strAudioBitrate) {
 	}
 	catch {
 		#Handle The Error
-		Write-Host -fore Yellow "Audio Bitrate Is Invalid. Please Use An Integer Ranging From $intMin-$intMax"
+		Write-Host "Audio Bitrate Is Invalid. Please Use An Integer Ranging From $intMin-$intMax"
 		exit
 	}
 	
@@ -935,7 +935,7 @@ function Check-AudioBitrate ($strAudioBitrate) {
 	}
 	else {
 		#Handle The Error
-		Write-Host -fore Yellow "Audio Bitrate Is Invalid Please Use An Integer Ranging From $intMin-$intMax"
+		Write-Host "Audio Bitrate Is Invalid Please Use An Integer Ranging From $intMin-$intMax"
 		exit
 	}
 }
@@ -944,7 +944,7 @@ function Check-AudioCodec ($strAudioCodec) {
 	$arrValid = @('flac', 'aac', 'ac3', 'vorbis')
 	
 	if (!$strAudioCodec) {
-		Write-Host -fore Yellow ("Audio Codec Is Not Defined. Valid Codecs:`n" + ($arrValid -join ', '))
+		Write-Host ("Audio Codec Is Not Defined. Valid Codecs:`n" + ($arrValid -join ', '))
 		exit
 	}
 	
@@ -954,7 +954,7 @@ function Check-AudioCodec ($strAudioCodec) {
 		return $strAudioCodec
 	}
 	
-	Write-Host -fore Yellow ("Invalid Audio Codec. Valid Codecs:`n" + ($arrValid -join ', '))
+	Write-Host ("Invalid Audio Codec. Valid Codecs:`n" + ($arrValid -join ', '))
 	exit
 }
 
@@ -962,7 +962,7 @@ function Check-VideoCodec ($strVideoCodec) {
 	$arrValid = @('libx264', 'libx265')
 	
 	if (!$strVideoCodec) {
-		Write-Host -fore Yellow ("Video Codec Is Not Defined. Valid Codecs:`n" + ($arrValid -join ', '))
+		Write-Host ("Video Codec Is Not Defined. Valid Codecs:`n" + ($arrValid -join ', '))
 		exit
 	}
 	
@@ -972,7 +972,7 @@ function Check-VideoCodec ($strVideoCodec) {
 		return $strVideoCodec
 	}
 	
-	Write-Host -fore Yellow ("Invalid Video Codec. Valid Codecs:`n" + ($arrValid -join ', '))
+	Write-Host ("Invalid Video Codec. Valid Codecs:`n" + ($arrValid -join ', '))
 	exit
 }
 
@@ -980,7 +980,7 @@ function Check-SubCodec ($strSubCodec) {
 	$arrValid = @('ass','srt')
 	
 	if (!$strSubCodec) {
-		Write-Host -fore Yellow ("Subtitle Codec Is Not Defined. Valid Codecs:`n" + ($arrValid -join ', '))
+		Write-Host ("Subtitle Codec Is Not Defined. Valid Codecs:`n" + ($arrValid -join ', '))
 		exit
 	}
 	
@@ -990,7 +990,7 @@ function Check-SubCodec ($strSubCodec) {
 		return $strSubCodec
 	}
 	
-	Write-Host -fore Yellow ("Invalid Subtitle Codec. Valid Codecs:`n" + ($arrValid -join ', '))
+	Write-Host ("Invalid Subtitle Codec. Valid Codecs:`n" + ($arrValid -join ', '))
 	exit
 }
 
@@ -1005,6 +1005,9 @@ function ConvertTo-Sexagesimal ([float]$floatDuration) {
 	$strMins=([int]$strMins).ToString("00")
 	$strSecs=([Math]::Round(([float]$strSecs), 3)).ToString("00.000")
 	
+	#added to fix localization causing $strSecs to have a comma (,) instead of a stop (.)
+	$strSecs = $StrSecs.Replace(',', '.')
+	
 	#Construct The Output String
 	$strDuration="$strHours`:$strMins`:$strSecs"
 	
@@ -1017,6 +1020,9 @@ function ConvertFrom-Sexagesimal ($strSexTime) {
 	$strHours=[float]($strSexTime.Split(':')[0])*3600
 	$strMins=[float]($strSexTime.Split(':')[1])*60
 	$strSecs=[float]($strSexTime.Split(':')[2])
+	
+	#added to fix localization causing $strSecs to have a comma (,) instead of a stop (.)
+	$strSecs = $StrSecs.Replace(',', '.')
 	
 	#Add Up To Get A Total Time
 	$floatTime=$strHours+$strMins+$strSecs
@@ -1064,7 +1070,7 @@ function Check-OffsetTime ($strOffsetTime) {
 	
 	#show an error if the offset time is undefined
 	if ($strOffsetTime -eq $null) {
-		Write-Host -fore Yellow "Offset Time Is Not Defined. Please Enter An Integer Ranging From $intMin-$intMax."
+		Write-Host "Offset Time Is Not Defined. Please Enter An Integer Ranging From $intMin-$intMax."
 		exit
 	}
 	
@@ -1073,7 +1079,7 @@ function Check-OffsetTime ($strOffsetTime) {
 		$strOffsetTime = 0 + ([Math]::Round($strOffsetTime))
 	}
 	catch {
-		Write-Host -fore Yellow "Offset Time Is Invalid. Please Enter An Integer Ranging From $intMin-$intMax."
+		Write-Host "Offset Time Is Invalid. Please Enter An Integer Ranging From $intMin-$intMax."
 		exit
 	}
 	
@@ -1082,7 +1088,7 @@ function Check-OffsetTime ($strOffsetTime) {
 	}
 	else {
 		#Handle The Error
-		Write-Host -fore Yellow "Offset Time Is Invalid. Please Enter An Integer Ranging From $intMin-$intMax."
+		Write-Host "Offset Time Is Invalid. Please Enter An Integer Ranging From $intMin-$intMax."
 		exit
 	}
 }
