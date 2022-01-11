@@ -1021,9 +1021,6 @@ function ConvertFrom-Sexagesimal ($strSexTime) {
 	$strMins=[float]($strSexTime.Split(':')[1])*60
 	$strSecs=[float]($strSexTime.Split(':')[2])
 	
-	#added to fix localization causing $strSecs to have a comma (,) instead of a stop (.)
-	$strSecs = $StrSecs.Replace(',', '.')
-	
 	#Add Up To Get A Total Time
 	$floatTime=$strHours+$strMins+$strSecs
 	
