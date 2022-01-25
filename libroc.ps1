@@ -642,10 +642,10 @@ Options:
 	-Copy		- Copies Segments. Very Fast, But May Cause Playback / Decoding Problems.
 			  Default: False
 	-VideoCodec	- Video Codec. libx264, libx265. Default: libx264
-	-AudioCodec	- Audio Codec. flac, aac, ac3, vorbis. Default: flac
+	-AudioCodec	- Audio Codec. aac, ac3, vorbis, pcm. Default: aac
 	-SubCodec	- Subtitle Codec. ass, srt. Default: ass
 	-AudioBitrate	- Audio Bitrate (kbps). Integer. 64-640.
-			  Defaults: flac: N/A, aac: 320, ac3: 640, vorbis: 320
+			  Defaults: aac: 320, ac3: 640, vorbis: 320, pcm: N/A
 	-Aggressive	- Aggressive Segment Detection. Use With Recurring / Non-Standard Chapter Layouts,
 			  This Mode Should Only Be Used When Neccessary. Default: False
 	-Offset		- Chapter Start / Finish Offset (ms). 0-1000. Creates A Time Gap Between Chapters
@@ -684,18 +684,16 @@ function Set-Codecs ($boolCopyMode, $strVideoCodec, $strAudioCodec, $strSubCodec
 			$intAudioBitrate = 640
 		}
 		
-		if ($strAudioCodec -eq 'flac') {
-			$intAudioBitrate = 64
-		}
-		
 		if ($strAudioCodec -eq 'vorbis') {
 			$intAudioBitrate = 320
 		}
-	}
-	else {
-		if ($strAudioCodec -eq 'flac') {
-			Write-Host ("Warning: Audio Bitrate Does Not Apply When Using The FLAC Codec.`n" + `
-			"Please Use AAC or AC3 Instead.`n")
+		
+		if ($strAudioCodec -eq 'pcm') {
+			#manually set codec
+			$strAudioCodec = 'pcm_s16le'
+			
+			#this bitrate is a placeholder for the command line, it will not used
+			$intAudioBitrate = 64
 		}
 	}
 	
@@ -941,7 +939,7 @@ function Check-AudioBitrate ($strAudioBitrate) {
 }
 
 function Check-AudioCodec ($strAudioCodec) {
-	$arrValid = @('flac', 'aac', 'ac3', 'vorbis')
+	$arrValid = @('aac', 'ac3', 'vorbis', 'pcm')
 	
 	if (!$strAudioCodec) {
 		Write-Host ("Audio Codec Is Not Defined. Valid Codecs:`n" + ($arrValid -join ', '))
