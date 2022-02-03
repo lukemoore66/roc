@@ -51,13 +51,13 @@ function Encode-Segments ($arrEncCmds, $hashCodecs, $arrOutputFiles) {
 		if ($floatStartTime -eq 0.0) {
 			.\bin\ffmpeg.exe -v error -stats -y -i $hashCmd.File -t $floatDuration `
 			-map 0 -map_chapters -1 -c:v $hashCodecs.Video -c:a $hashCodecs.Audio -c:s $hashCodecs.Sub -preset:v $strPreset -crf $intCrf `
-			-x264opts stitchable=1 -b:a $hashCodecs.AudioBitrate $strOutputFile
+			-x264opts stitchable=1 -b:a $hashCodecs.AudioBitrate -af aformat=sample_fmts=s16:channel_layouts=stereo:sample_rates=48000 $strOutputFile
 		}
 		#otherwise, we have to use seeking, seek a bit backwards, and decode that bit until we get to the start point
 		else {
 			.\bin\ffmpeg.exe -v error -stats -y -ss $floatHybridSeek -i $hashCmd.File -ss $floatSeekOffset -t $floatDuration `
 			-map 0 -map_chapters -1 -c:v $hashCodecs.Video -c:a $hashCodecs.Audio -c:s $hashCodecs.Sub -preset:v $strPreset -crf $intCrf `
-			-x264opts stitchable=1 -b:a $hashCodecs.AudioBitrate $strOutputFile
+			-x264opts stitchable=1 -b:a $hashCodecs.AudioBitrate -af aformat=sample_fmts=s16:channel_layouts=stereo:sample_rates=48000 $strOutputFile
 		}
 
 		$intCounter++
