@@ -17,7 +17,7 @@ Param (
 )
 
 #set version
-$strVersion = "v1.0 2018"
+$strVersion = "v1.0.1 2023"
 
 #Import Functions
 . '.\libroc.ps1'
@@ -26,7 +26,7 @@ $strVersion = "v1.0 2018"
 Set-Alias -Name 'roc' -Value '.\roc.ps1' -Scope 1
 
 #save and set the initial window title
-$strInitialWinTitle=((Get-Host).UI.RawUI).WindowTitle
+$strInitialWinTitle = ((Get-Host).UI.RawUI).WindowTitle
 Set-WindowTitle 'roc' $RocSession
 
 #show help if needed
@@ -37,24 +37,24 @@ Show-Version $SetupOnly $RocSession $strVersion
 
 #check the input parameters
 #TODO: codecs
-$intCrf = Check-Crf $Crf
-$strPreset = Check-Preset $Preset
-$strOutputPath = Check-OutputPath $OutputPath
-$strTempPath = Check-OutputPath $TempPath
-$strVideoCodec = Check-VideoCodec $VideoCodec
-$strAudioCodec = Check-AudioCodec $AudioCodec
-$strSubCodec = Check-SubCodec $SubCodec
-$intAudioBitrate = Check-AudioBitrate $AudioBitrate
-$floatOffsetTime = Check-OffsetTime $Offset
+$intCrf = Get-CRF $Crf
+$strPreset = Get-Preset $Preset
+$strOutputPath = Get-OutputPath $OutputPath
+$strTempPath = Get-OutputPath $TempPath
+$strVideoCodec = Get-VideoCodec $VideoCodec
+$strAudioCodec = Get-AudioCodec $AudioCodec
+$strSubCodec = Get-SubCodec $SubCodec
+$intAudioBitrate = Get-AudioBitrate $AudioBitrate
+$floatOffsetTime = Get-OffsetTime $Offset
 $boolAggressive = $Aggressive
-$intChapEdition = Check-ChapEdition $EditionIndex
+$intChapEdition = Get-ChapEditionInit $EditionIndex
 
 #get a list of input files
 $listFiles = Get-Files $InputPath $true $true
 
 #show the input file list and total count
-Write-Host "`nInput File(s):`n"; Write-Host (($listFiles | % {Write-Host $_.Name}) + "`n" + `
-@($listFiles).Count + " File(s) Found.`n")
+Write-Host "`nInput File(s):`n"; Write-Host (($listFiles | ForEach-Object { Write-Host $_.Name }) + "`n" + `
+	@($listFiles).Count + " File(s) Found.`n")
 
 #set up the codecs
 $hashCodecs = Set-Codecs $Copy $strVideoCodec $strAudioCodec $strSubCodec $intAudioBitrate
@@ -87,20 +87,20 @@ try {
 		$xmlChapterInfo = Get-ChapEdition $xmlChapterInfo $intChapEdition
 
 		#make a hash table referencing external segment files by their segment id
-		$hashSegmentFiles = Generate-FileSegmentHash $objFile
+		$hashSegmentFiles = Set-FileSegmentHash $objFile
 
 		#remove any invalid chapters
 		$xmlChapterInfo = Remove-InvalidChapters $xmlChapterInfo $hashSegmentFiles
 		
 		#make an array of hashes containing encode commands for ffmpeg
 		$arrEncCmds = Get-EncodeCommands $xmlChapterInfo $hashSegmentFiles `
-		$boolAggressive $floatOffsetTime
+			$boolAggressive $floatOffsetTime
 
 		#fix the chapter entries now the encode commands have been generated
-		$xmlChapterInfo = Fix-Chapters $xmlChapterInfo $boolAggressive $floatOffsetTime
+		$xmlChapterInfo = Get-Chapters $xmlChapterInfo $boolAggressive $floatOffsetTime
 			
 		#define the chapter file output path
-		$strChapterFile = $strTempPath + '\' + (Generate-RandomString) + '.xml'
+		$strChapterFile = $strTempPath + '\' + (Set-RandomString) + '.xml'
 
 		#save the chapter file to this output path
 		$xmlChapterInfo.Save("$strChapterFile")
@@ -113,16 +113,16 @@ try {
 		$arrOutputFiles = Get-OutputFiles $arrEncCmds $strTempPath
 
 		#use ffmpeg to run the encode instructions
-		Encode-Segments $arrEncCmds $hashCodecs $arrOutputFiles
+		Out-Segments $arrEncCmds $hashCodecs $arrOutputFiles $intCrf $strPreset
 
 		#set the mkvmerge output file name
-		$strMmgOutputFile = $strTempPath + '\' + (Generate-RandomString) + '.mkv'
+		$strMmgOutputFile = $strTempPath + '\' + (Set-RandomString) + '.mkv'
 
 		#merge the segments with mkvmerge
 		Merge-Segments $arrOutputFiles $strMmgOutputFile $strChapterFile $objFile.FullName
 		
 		#tidy up temp files
-		Cleanup-Files $arrOutputFiles $strChapterFile $null $null
+		Remove-Files $arrOutputFiles $strChapterFile $null $null
 		
 		#make a list of subtitle info
 		$arrSubInfo = Get-SubInfo $strMmgOutputFile $strTempPath
@@ -131,10 +131,10 @@ try {
 		$strOutputFile = $strOutputPath + '\' + $objFile.BaseName + '.mkv'
 		
 		#remux the file
-		Remux-Subs $strOutputFile $arrSubInfo $strMmgOutputFile
+		Out-Subs $strOutputFile $arrSubInfo $strMmgOutputFile
 		
 		#tidy up temp files
-		Cleanup-Files $arrOutputFiles $strChapterFile $strMmgOutputFile $arrSubInfo
+		Remove-Files $arrOutputFiles $strChapterFile $strMmgOutputFile $arrSubInfo
 
 		#add the file to the completed file list
 		$arrCompletedFiles = $arrCompletedFiles + $objFile.FullName
@@ -155,10 +155,10 @@ try {
 catch {
 	#show error messages
 	Write-Host ("Error: Caught Exception At Line " + `
-	$_.InvocationInfo.ScriptLineNumber + ":`n" + $_.Exception.Message)
+			$_.InvocationInfo.ScriptLineNumber + ":`n" + $_.Exception.Message)
 
 	#tidy up temp files
-	Cleanup-Files $arrOutputFiles $strChapterFile $strMmgOutputFile $arrSubInfo
+	Remove-Files $arrOutputFiles $strChapterFile $strMmgOutputFile $arrSubInfo
 
 	#set the window title back to normal if needed
 	Set-WindowTitle $strInitialWinTitle $RocSession
@@ -167,7 +167,7 @@ catch {
 }
 finally {
 	#tidy up temp files
-	Cleanup-Files $arrOutputFiles $strChapterFile $strMmgOutputFile $arrSubInfo
+	Remove-Files $arrOutputFiles $strChapterFile $strMmgOutputFile $arrSubInfo
 
 	#set the window title back to normal if needed
 	Set-WindowTitle $strInitialWinTitle $RocSession

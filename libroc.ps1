@@ -1,11 +1,11 @@
-function Encode-Segments ($arrEncCmds, $hashCodecs, $arrOutputFiles) {
+function Out-Segments ($arrEncCmds, $hashCodecs, $arrOutputFiles, $intCrf, $strPreset) {
 	#if there is only one encode command
 	if (@($arrEncCmds).Count -le 1) {
 		#skip the file
 		Write-Host "Input File Does Not Appear To Have Any Valid Segments And/Or Chapters.`nThis File Will Be Skipped.`n"
 		
 		#tidy up temp files
-		Cleanup-Files $arrOutputFiles $strChapterFile $strMmgOutputFile $arrSubInfo
+		Remove-Files $arrOutputFiles $strChapterFile $strMmgOutputFile $arrSubInfo
 		
 		#increment the file counter
 		$script:intFileCounter++
@@ -45,19 +45,19 @@ function Encode-Segments ($arrEncCmds, $hashCodecs, $arrOutputFiles) {
 		}
 
 		Write-Host ("Processing Segment $intCounter of $intTotalChunks Duration: $strDuration Output Range: " + `
-		"$strStartProg - $strEndProg Source: $strSource")
+				"$strStartProg - $strEndProg Source: $strSource")
 		
 		#avoid seeking when possible, as ffmpeg seems to be buggy sometimes
 		if ($floatStartTime -eq 0.0) {
 			.\bin\ffmpeg.exe -v error -stats -y -i $hashCmd.File -t $floatDuration `
-			-map 0 -map_chapters -1 -c:v $hashCodecs.Video -c:a $hashCodecs.Audio -c:s $hashCodecs.Sub -preset:v $strPreset -crf $intCrf `
-			-x264opts stitchable=1 -b:a $hashCodecs.AudioBitrate -af aformat=sample_fmts=s16:channel_layouts=stereo:sample_rates=48000 $strOutputFile
+				-map 0 -map_chapters -1 -c:v $hashCodecs.Video -c:a $hashCodecs.Audio -c:s $hashCodecs.Sub -preset:v $strPreset -crf $intCrf `
+				-x264opts stitchable=1 -b:a $hashCodecs.AudioBitrate -af aformat=sample_fmts=s16:channel_layouts=stereo:sample_rates=48000 $strOutputFile
 		}
 		#otherwise, we have to use seeking, seek a bit backwards, and decode that bit until we get to the start point
 		else {
 			.\bin\ffmpeg.exe -v error -stats -y -ss $floatHybridSeek -i $hashCmd.File -ss $floatSeekOffset -t $floatDuration `
-			-map 0 -map_chapters -1 -c:v $hashCodecs.Video -c:a $hashCodecs.Audio -c:s $hashCodecs.Sub -preset:v $strPreset -crf $intCrf `
-			-x264opts stitchable=1 -b:a $hashCodecs.AudioBitrate -af aformat=sample_fmts=s16:channel_layouts=stereo:sample_rates=48000 $strOutputFile
+				-map 0 -map_chapters -1 -c:v $hashCodecs.Video -c:a $hashCodecs.Audio -c:s $hashCodecs.Sub -preset:v $strPreset -crf $intCrf `
+				-x264opts stitchable=1 -b:a $hashCodecs.AudioBitrate -af aformat=sample_fmts=s16:channel_layouts=stereo:sample_rates=48000 $strOutputFile
 		}
 
 		$intCounter++
@@ -84,32 +84,32 @@ function Get-EncCmdsAggressive ($xmlChapterInfo, $hashSegmentFiles, $floatOffset
 		
 		#add the file path and chapter start / finish times to the encode instructions array
 		$arrEncCmds = $arrEncCmds + @{
-			File = $strFilePath
+			File  = $strFilePath
 			Start = (ConvertFrom-Sexagesimal $nodeChapAtom.ChapterTimeStart) + $floatOffsetTime
-			End = (ConvertFrom-Sexagesimal $nodeChapAtom.ChapterTimeEnd) - $floatOffsetTime
+			End   = (ConvertFrom-Sexagesimal $nodeChapAtom.ChapterTimeEnd) - $floatOffsetTime
 		}
 	}
 	
 	return $arrEncCmds
 }
 
-function Fix-ChapAggressive ($xmlChapterInfo, $floatOffsetTime) {
+function Get-ChapAggressive ($xmlChapterInfo, $floatOffsetTime) {
 	#aggressive mode fix chapters
 	#for each chapter atom
 	$intCount = 0
 	$floatProgress = 0.0
 	foreach ($nodeChapAtom in $xmlChapterInfo.Chapters.EditionEntry.ChapterAtom) {
-			#get the chapter's duration
-			$floatChapDur = (ConvertFrom-Sexagesimal $nodeChapAtom.ChapterTimeEnd) - (ConvertFrom-Sexagesimal $nodeChapAtom.ChapterTimeStart)
+		#get the chapter's duration
+		$floatChapDur = (ConvertFrom-Sexagesimal $nodeChapAtom.ChapterTimeEnd) - (ConvertFrom-Sexagesimal $nodeChapAtom.ChapterTimeStart)
 		
-			#set the chapter start to the current progress
-			$nodeChapAtom.ChapterTimeStart = ConvertTo-Sexagesimal ($floatProgress + $floatOffsetTime)
+		#set the chapter start to the current progress
+		$nodeChapAtom.ChapterTimeStart = ConvertTo-Sexagesimal ($floatProgress + $floatOffsetTime)
 			
-			#add the chapter duration to the current progress
-			$floatProgress = $floatProgress + $floatChapDur 
+		#add the chapter duration to the current progress
+		$floatProgress = $floatProgress + $floatChapDur 
 			
-			#set the chapter end time to the current progress, minus the correction
-			$nodeChapAtom.ChapterTimeEnd = ConvertTo-Sexagesimal ($floatProgress - $floatOffsetTime)
+		#set the chapter end time to the current progress, minus the correction
+		$nodeChapAtom.ChapterTimeEnd = ConvertTo-Sexagesimal ($floatProgress - $floatOffsetTime)
 			
 		#if the chapter has sid info
 		if ($nodeChapAtom.ChapterSegmentUID) {
@@ -121,7 +121,7 @@ function Fix-ChapAggressive ($xmlChapterInfo, $floatOffsetTime) {
 		if (!$nodeChapAtom.ChapterUID) {
 			$nodeChapAtom.AppendChild($xmlChapterInfo.CreateElement('ChapterUID')) | Out-Null
 		}
-		$nodeChapAtom.ChapterUID = Generate-UID
+		$nodeChapAtom.ChapterUID = Set-UID
 		
 		$intCount++
 	}
@@ -130,7 +130,7 @@ function Fix-ChapAggressive ($xmlChapterInfo, $floatOffsetTime) {
 	if (!$xmlChapterInfo.Chapters.EditionEntry.EditionUID) {
 		$xmlChapterInfo.Chapters.EditionEntry.AppendChild($xmlChapterInfo.CreateElement('EditionUID')) | Out-Null
 	}
-	$xmlChapterInfo.Chapters.EditionEntry.EditionUID = Generate-UID
+	$xmlChapterInfo.Chapters.EditionEntry.EditionUID = Set-UID
 	
 	#set the chapters to not be ordered chapters
 	$xmlChapterInfo.Chapters.EditionEntry.EditionFlagOrdered = '0'
@@ -140,22 +140,22 @@ function Fix-ChapAggressive ($xmlChapterInfo, $floatOffsetTime) {
 
 function Merge-Segments ($arrOutputFiles, $strMmgOutputFile, $strChapterFile, $strInputFile) {
 	#escape backticks if needed
-	$strMmgOutputFile = Escape-Backticks $strMmgOutputFile
-	$strChapterFile = Escape-Backticks $strChapterFile
-	$strInputFile = Escape-Backticks $strInputFile
+	$strMmgOutputFile = Get-EscapeBackticks $strMmgOutputFile
+	$strChapterFile = Get-EscapeBackticks $strChapterFile
+	$strInputFile = Get-EscapeBackticks $strInputFile
 	$arrEscOutputFiles = @()
-	$arrOutputFiles | % {$arrEscOutputFiles += (Escape-Backticks $_)}
+	$arrOutputFiles | ForEach-Object { $arrEscOutputFiles += (Get-EscapeBackticks $_) }
 	
 	#Make an expression string that mkvmerge can run
 	Write-Host "Appending Segments..."
 	$strMkvMerge = ".\bin\mkvmerge.exe --append-mode track --output ""$strMmgOutputFile"" --chapters ""$strChapterFile"" " + `
-	"-A -D -S -B --no-chapters ""$strInputFile"" """ + ($arrEscOutputFiles -join """ + """) + """ | Out-Null"
+		"-A -D -S -B --no-chapters ""$strInputFile"" """ + ($arrEscOutputFiles -join """ + """) + """ | Out-Null"
 	
 	#Use mkvmerge to join all of the output files
 	Invoke-Expression $strMkvMerge
 }
 
-function Remux-Subs ($strOutputFile, $arrSubInfo, $strMmgOutputFile) {
+function Out-Subs ($strOutputFile, $arrSubInfo, $strMmgOutputFile) {
 	#if there are no subtitles
 	if ($arrSubInfo.Count -eq 0) {
 		#simply move / rename the the file
@@ -166,27 +166,27 @@ function Remux-Subs ($strOutputFile, $arrSubInfo, $strMmgOutputFile) {
 	}
 	
 	#escape backticks if needed
-	$strOutputFile = Escape-Backticks $strOutputFile
-	$strMmgOutputFile = Escape-Backticks $strMmgOutputFile
+	$strOutputFile = Get-EscapeBackticks $strOutputFile
+	$strMmgOutputFile = Get-EscapeBackticks $strMmgOutputFile
 	
 	$arrSubFiles = @()
 	foreach ($hashSubInfo in $arrSubInfo) {
 		#escape backticks if needed
-		$strSubFile = Escape-Backticks $hashSubInfo.File
+		$strSubFile = Get-EscapeBackticks $hashSubInfo.File
 		
 		$arrSubFiles = $arrSubFiles + $hashSubInfo.File
 		$strMkvExt = ".\bin\mkvextract.exe ""$strMmgOutputFile"" tracks " + $hashSubInfo.Index + ":""" + $strSubFile + `
-		""" | Out-Null"
+			""" | Out-Null"
 		
 		Invoke-Expression $strMkvExt
 	}
 	
 	#escape backticks if needed
 	$arrEscSubFiles = @()
-	$arrSubFiles | % {$arrEscSubFiles += (Escape-Backticks $_)}
+	$arrSubFiles | ForEach-Object { $arrEscSubFiles += (Get-EscapeBackticks $_) }
 	
 	$strMkvMerge = ".\bin\mkvmerge.exe --output ""$strOutputFile"" -S ""$strMmgOutputFile"" """ + ($arrEscSubFiles -join """ """) + `
-	""" | Out-Null"
+		""" | Out-Null"
 	
 	Write-Host "Remuxing Subtitles..."
 	
@@ -205,14 +205,14 @@ function Get-SubInfo ($strMmgOutputFile, $strTempPath) {
 		if ($jsonProperties.codec_id -eq 'S_TEXT/ASS') {
 			$arrSubInfo = $arrSubInfo + @{
 				Index = $intCount
-				File = $strTempPath + '\' + (Generate-RandomString) + '.ass'
+				File  = $strTempPath + '\' + (Set-RandomString) + '.ass'
 			}
 		}
 		
 		if ($jsonProperties.codec_id -eq 'S_TEXT/UTF8') {
 			$arrSubInfo = $arrSubInfo + @{
 				Index = $intCount
-				File = $strTempPath + '\' + (Generate-RandomString) + '.srt'
+				File  = $strTempPath + '\' + (Set-RandomString) + '.srt'
 			}
 		}
 		
@@ -224,11 +224,11 @@ function Get-SubInfo ($strMmgOutputFile, $strTempPath) {
 
 function Show-Version ($SetupOnly, $RocSession, $strVersion) {
 	if ($SetupOnly) {
-	Set-Variable -Name RocSession -Value $true -Scope 2
+		Set-Variable -Name RocSession -Value $true -Scope 2
 	
-	Write-Host "(roc) - Remux Ordered Chapters $strVersion By d3sim8.`nType 'roc -Help' And Press Enter To Begin.`n"
+		Write-Host "(roc) - Remux Ordered Chapters $strVersion By d3sim8.`nType 'roc -Help' And Press Enter To Begin.`n"
 	
-	exit
+		exit
 	}
 	else {
 		if (!$RocSession) {
@@ -266,9 +266,9 @@ function Get-EncodeCommands ($xmlChapterInfo, $hashSegmentFiles, $boolAggressive
 
 			#add start time, end time and file name encode list
 			$arrEncCmds = $arrEncCmds + @{
-				File = $hashSegmentFiles.($nodeChapAtom.ChapterSegmentUID.'#text')
+				File  = $hashSegmentFiles.($nodeChapAtom.ChapterSegmentUID.'#text')
 				Start = $floatEncStart
-				End = $floatEncEnd
+				End   = $floatEncEnd
 			}
 
 			#set encode start and end back to null
@@ -292,7 +292,7 @@ function Get-EncodeCommands ($xmlChapterInfo, $hashSegmentFiles, $boolAggressive
 			}
 
 			#if we are not on the last chapter
-			if  ($intCount -ne ($xmlChapterInfo.Chapters.EditionEntry.ChapterAtom.Count - 1)) {
+			if ($intCount -ne ($xmlChapterInfo.Chapters.EditionEntry.ChapterAtom.Count - 1)) {
 				#if the next chapter is going to be ordered
 				if ($xmlChapterInfo.Chapters.EditionEntry.ChapterAtom[$intCount + 1].ChapterSegmentUID) {
 					#set encode end time to current chapter's end time
@@ -306,12 +306,12 @@ function Get-EncodeCommands ($xmlChapterInfo, $hashSegmentFiles, $boolAggressive
 			}
 
 			#if there is a a valid encode start and a valid encode end time
-			if (($floatEncStart -ne $null) -and ($floatEncEnd -ne $null)) {
+			if (($null -ne $floatEncStart) -and ($null -ne $floatEncEnd)) {
 				#add encode start time and encode end time to encode list
 				$arrEncCmds = $arrEncCmds + @{
-					File = $objFile.FullName
+					File  = $objFile.FullName
 					Start = $floatEncStart
-					End = $floatEncEnd
+					End   = $floatEncEnd
 				}
 
 				#set the encode start and encode end times to null
@@ -341,7 +341,7 @@ function Remove-InvalidChapters ($xmlChapterInfo, $hashSegmentFiles) {
 				
 				#show a warning
 				Write-Host ("Warning: Duplicate UID Found For Chapter: " + ($intCount + 1) + `
-				"`nThis Chapter Will Be Skipped.`n")
+						"`nThis Chapter Will Be Skipped.`n")
 			}
 		}
 		
@@ -363,13 +363,13 @@ function Remove-InvalidChapters ($xmlChapterInfo, $hashSegmentFiles) {
 	#Show Missing Atoms Warning
 	if ($arrMissAtoms.Count -ne 0) {
 		if ($arrMissAtoms.Count -gt 1) {
-		$strChapterAtoms = ($arrMissAtoms[0..($arrMissAtoms.Count - 2)] -join ', ') + ' and ' +  $arrMissAtoms[-1]
-		Write-Host ("Warning: Missing External Segments For Chapters $strChapterAtoms`n" + `
-		"These Chapters Will Be Skipped.`n")
+			$strChapterAtoms = ($arrMissAtoms[0..($arrMissAtoms.Count - 2)] -join ', ') + ' and ' + $arrMissAtoms[-1]
+			Write-Host ("Warning: Missing External Segments For Chapters $strChapterAtoms`n" + `
+					"These Chapters Will Be Skipped.`n")
 		}
 		else {
 			Write-Host ("Warning: Missing External Segment For Chapter " + $arrMissAtoms[0] + `
-			"`nThis Chapter Will Be Skipped.`n")
+					"`nThis Chapter Will Be Skipped.`n")
 		}
 	}
 	
@@ -383,7 +383,7 @@ function Get-OutputFiles ($arrEncCmds, $strTempPath) {
 	#for the number of encode commands
 	foreach ($hashCmd in $arrEncCmds) {
 		#generate a random output file path
-		$strOutputPath = "$strTempPath\" + (Generate-RandomString) + '.mkv'
+		$strOutputPath = "$strTempPath\" + (Set-RandomString) + '.mkv'
 		
 		#add this path to the output file array
 		$arrOutputFiles = $arrOutputFiles + $strOutputPath
@@ -392,9 +392,9 @@ function Get-OutputFiles ($arrEncCmds, $strTempPath) {
 	return $arrOutputFiles
 }
 
-function Generate-FileSegmentHash ($objFile) {
+function Set-FileSegmentHash ($objFile) {
 	#make a hash table of matroska files referenced by their corresponding SIDs
-	$listSegmentFiles=Get-Files $objFile.Directory $false $false
+	$listSegmentFiles = Get-Files $objFile.Directory $false $false
 	$hashSegmentFiles = @{}
 	foreach ($objSegmentFile in $listSegmentFiles) {
 		if ($objSegmentFile.Extension -eq '.mkv') {
@@ -406,11 +406,11 @@ function Generate-FileSegmentHash ($objFile) {
 	return $hashSegmentFiles
 }
 
-function Fix-Chapters ($xmlChapterInfo, $boolAggressive, $floatOffsetTime) {
+function Get-Chapters ($xmlChapterInfo, $boolAggressive, $floatOffsetTime) {
 	#if aggressive mode is enabled
 	if ($boolAggressive) {
 		#use aggressive mode to fix the chapters
-		return 	Fix-ChapAggressive $xmlChapterInfo $floatOffsetTime
+		return 	Get-ChapAggressive $xmlChapterInfo $floatOffsetTime
 	}
 
 	#fix the chapters
@@ -462,7 +462,7 @@ function Fix-Chapters ($xmlChapterInfo, $boolAggressive, $floatOffsetTime) {
 		if (!$nodeChapAtom.ChapterUID) {
 			$nodeChapAtom.AppendChild($xmlChapterInfo.CreateElement('ChapterUID')) | Out-Null
 		}
-		$nodeChapAtom.ChapterUID = Generate-UID
+		$nodeChapAtom.ChapterUID = Set-UID
 
 		#increment the index counter
 		$intCount++
@@ -472,7 +472,7 @@ function Fix-Chapters ($xmlChapterInfo, $boolAggressive, $floatOffsetTime) {
 	if (!$xmlChapterInfo.Chapters.EditionEntry.EditionUID) {
 		$xmlChapterInfo.Chapters.EditionEntry.AppendChild($xmlChapterInfo.CreateElement('EditionUID')) | Out-Null
 	}
-	$xmlChapterInfo.Chapters.EditionEntry.EditionUID = Generate-UID
+	$xmlChapterInfo.Chapters.EditionEntry.EditionUID = Set-UID
 	
 	#set the chapters to not be ordered chapters
 	$xmlChapterInfo.Chapters.EditionEntry.EditionFlagOrdered = '0'
@@ -480,7 +480,7 @@ function Fix-Chapters ($xmlChapterInfo, $boolAggressive, $floatOffsetTime) {
 	return $xmlChapterInfo
 }
 
-function Check-ChapEdition ($strChapterEdition) {
+function Get-ChapEditionInit ($strChapterEdition) {
 	if (!$strChapterEdition) {
 		return $null
 	}
@@ -513,7 +513,7 @@ function Get-ChapEdition ($xmlChapterInfo, $intInputIndex) {
 	
 	
 	#if a chapter edition is manually defined
-	if ($intInputIndex -ne $null) {
+	if ($null -ne $intInputIndex) {
 		#if it exists
 		if (@($xmlChapterInfo.Chapters.EditionEntry)[$intInputIndex]) {
 			#if it has ordered chapters
@@ -525,13 +525,13 @@ function Get-ChapEdition ($xmlChapterInfo, $intInputIndex) {
 			else {
 				#show a warning
 				Write-Host ("Warning: Chapter Edition Index: $intInputIndex Was Not Found.`n" + `
-				"Automatically Selecting Chapter Edition.`n")
+						"Automatically Selecting Chapter Edition.`n")
 			}	
 		}
 	}
 	
 	#if the chapter edition index is null
-	if ($intChapEdIndex -eq $null) {
+	if ($null -eq $intChapEdIndex) {
 		#for each chapter edition
 		$intCount = 0
 		foreach ($nodeChapEd in $xmlChapterInfo.Chapters.EditionEntry) {
@@ -550,7 +550,7 @@ function Get-ChapEdition ($xmlChapterInfo, $intInputIndex) {
 	}
 	
 	#if the chapter edition index is null
-	if ($intChapEdIndex -eq $null) {
+	if ($null -eq $intChapEdIndex) {
 		#for each chapter edition
 		$intCount = 0
 		foreach ($nodeChapEd in $xmlChapterInfo.Chapters.EditionEntry) {
@@ -566,13 +566,13 @@ function Get-ChapEdition ($xmlChapterInfo, $intInputIndex) {
 	}
 	
 	#if the chapter edition is not null, i.e. one was found
-	if ($intChapEdIndex -ne $null) {
+	if ($null -ne $intChapEdIndex) {
 		#remove all other chapter entries
 		$intCount = 0
 		foreach ($nodeChapEd in $xmlChapterInfo.Chapters.EditionEntry) {
-				if ($intCount -ne $intChapEdIndex) {
-					$nodeChapEd.ParentNode.RemoveChild($nodeChapEd) | Out-Null
-				}
+			if ($intCount -ne $intChapEdIndex) {
+				$nodeChapEd.ParentNode.RemoveChild($nodeChapEd) | Out-Null
+			}
 			#increment the chapter edition index counter
 			$intCount++
 		}
@@ -582,7 +582,7 @@ function Get-ChapEdition ($xmlChapterInfo, $intInputIndex) {
 		Write-Host "No Ordered Chapter Editions Found. Skipping File."
 		
 		#tidy up temp files
-		Cleanup-Files $arrOutputFiles $strChapterFile $strMmgOutputFile $arrSubInfo
+		Remove-Files $arrOutputFiles $strChapterFile $strMmgOutputFile $arrSubInfo
 		
 		#increment the file counter
 		$script:intFileCounter++
@@ -624,8 +624,8 @@ function Get-TotalDuration ($arrEncCmds) {
 
 function Show-Help ($boolHelp) {
 	if ($boolHelp) {
-	Write-Host `
-@"
+		Write-Host `
+			@"
 roc - Remove Ordered Chapters
 
 Transcodes / Remuxes Matroska Files That Use Ordered Chapters Into a Single Matroska File.
@@ -654,14 +654,14 @@ Options:
 	-Help		- Show Script Information And Usage, Then Exit. Default: False
 
 "@
-	exit
+		exit
 	}
 
 }
 
 function Set-WindowTitle ($strWinTitle, $boolRocSession) {		
 	if (!$boolRocSession) {
-		$strWinTitle=((Get-Host).UI.RawUI).WindowTitle=$strWinTitle
+		$strWinTitle = ((Get-Host).UI.RawUI).WindowTitle = $strWinTitle
 	}
 }
 
@@ -675,7 +675,7 @@ function Set-Codecs ($boolCopyMode, $strVideoCodec, $strAudioCodec, $strSubCodec
 		Write-Host "Warning: Codec Copy Mode Enabled. This Can Cause Playback / Decoding Problems.`n"
 	}
 	
-	if ($intAudioBitrate -eq $null) {
+	if ($null -eq $intAudioBitrate) {
 		if ($strAudioCodec -eq 'aac') {
 			$intAudioBitrate = 320
 		}
@@ -698,9 +698,9 @@ function Set-Codecs ($boolCopyMode, $strVideoCodec, $strAudioCodec, $strSubCodec
 	}
 	
 	$hashCodecs = @{
-		Video = $strVideoCodec
-		Audio = $strAudioCodec
-		Sub = $strSubCodec
+		Video        = $strVideoCodec
+		Audio        = $strAudioCodec
+		Sub          = $strSubCodec
 		AudioBitrate = ([string]$intAudioBitrate + 'k')
 	}
 	
@@ -709,7 +709,7 @@ function Set-Codecs ($boolCopyMode, $strVideoCodec, $strAudioCodec, $strSubCodec
 
 function Get-FullPath ($strInput) {
 	try {
-		$strOutput=(Resolve-Path -LiteralPath $strInput -ErrorAction Stop).ToString()
+		$strOutput = (Resolve-Path -LiteralPath $strInput -ErrorAction Stop).ToString()
 	}
 	catch {
 		return $strInput
@@ -718,27 +718,27 @@ function Get-FullPath ($strInput) {
 	return $strOutput
 }
 
-function Check-OutputPath ($strOutputFolder) {
+function Get-OutputPath ($strOutputFolder) {
 	if (!$strOutputFolder) {
-	Write-Host "Output Folder Is Undefined. Try Using The -OutputPath Option."
-	Write-Host "E.g. roc -OutputPath 'C:\valid\path\to\output'"
-	exit
+		Write-Host "Output Folder Is Undefined. Try Using The -OutputPath Option."
+		Write-Host "E.g. roc -OutputPath 'C:\valid\path\to\output'"
+		exit
 	}
 	
-	$boolIsValidPath=Test-Path -PathType Container -LiteralPath $strOutputFolder
+	$boolIsValidPath = Test-Path -PathType Container -LiteralPath $strOutputFolder
 	if (!$boolIsValidPath) {
 		$strOutputFolder = $strOutputFolder.Replace('`', '')
-		$boolIsValidPath=Test-Path -PathType Container -LiteralPath $strOutputFolder
+		$boolIsValidPath = Test-Path -PathType Container -LiteralPath $strOutputFolder
 	}
 	
 	if ($boolIsValidPath) {
 		#Always Get The Full Path To The Output Folder
-		$strOutputFolder=Get-FullPath $strOutputFolder
+		$strOutputFolder = Get-FullPath $strOutputFolder
 	
 		#Check If The Output Folder Can Be Written To
 		try {
-			$strRandom=Generate-RandomString
-			$strOutputFolderRandom="$strOutputFolder\$strRandom"
+			$strRandom = Set-RandomString
+			$strOutputFolderRandom = "$strOutputFolder\$strRandom"
 			Add-Content -Value $null -NoNewLine -LiteralPath $strOutputFolderRandom -ErrorAction Stop
 		}
 		catch {	
@@ -763,45 +763,45 @@ function Check-OutputPath ($strOutputFolder) {
 	}
 }
 
-function Generate-RandomString ($strNumOfChars) {
-	$strOutput=$null
-	$intCount=1
+function Set-RandomString ($strNumOfChars) {
+	$strOutput = $null
+	$intCount = 1
 	
-	$arrUpperAZ=[char[]]([int][char]'a'..[int][char]'z')
-	$arrLowerAZ=[char[]]([int][char]'A'..[int][char]'Z')
-	$arr0To9= [char[]]([int][char]'0'..[int][char]'9')
+	$arrUpperAZ = [char[]]([int][char]'a'..[int][char]'z')
+	$arrLowerAZ = [char[]]([int][char]'A'..[int][char]'Z')
+	$arr0To9 = [char[]]([int][char]'0'..[int][char]'9')
 	
-	$arrInput=$arrLowerAZ+$arrUpperAZ+$arr0To9
+	$arrInput = $arrLowerAZ + $arrUpperAZ + $arr0To9
 		
 	if (!$strNumOfChars) {
-		$strNumOfChars=16
+		$strNumOfChars = 16
 	}
 		
 	while ($intCount -le $strNumOfChars) {
-		$strOutput=$strOutput+(Get-Random -InputObject $arrInput -Count 1)
+		$strOutput = $strOutput + (Get-Random -InputObject $arrInput -Count 1)
 		$intCount++
 	}
 	
 	return $strOutput
 }
 
-function Generate-UID {
-	$intNumOfChars=20
-	$arrInput=@(0..9)
+function Set-UID {
+	$intNumOfChars = 20
+	$arrInput = @(0..9)
 	
 	while ($true) {
-		[string]$strOutput=$null
-		$intCount=1
+		[string]$strOutput = $null
+		$intCount = 1
 		while ($intCount -le $intNumOfChars) {
 			#add to the output string
-			$strOutput=$strOutput+(Get-Random -InputObject $arrInput -Count 1)
+			$strOutput = $strOutput + (Get-Random -InputObject $arrInput -Count 1)
 			#increment the string counter
 			$intCount++
 		}
 
 		#trim off leading zeros
 		while ($strOutput[0] -eq '0') {
-			$strOutput=$strOutput.TrimStart('0')
+			$strOutput = $strOutput.TrimStart('0')
 		}
 		
 		$bigintOutput = New-Object -TypeName System.Numerics.BigInteger $strOutput
@@ -831,7 +831,7 @@ function Get-Files ($InputPath, $boolInit, $boolExclude) {
 		}
 	}
 	
-	$listFiles=New-Object System.Collections.Generic.List[System.Object]
+	$listFiles = New-Object System.Collections.Generic.List[System.Object]
 
 	if ((Test-Path -LiteralPath $InputPath -PathType Container)) {
 		foreach ($objFile in (Get-ChildItem -LiteralPath $InputPath)) {
@@ -861,19 +861,19 @@ function Get-Files ($InputPath, $boolInit, $boolExclude) {
 	return $listFiles
 }
 
-function Check-CRF ($strCrf) {
+function Get-CRF ($strCrf) {
 	$intMin = 0
 	$intMax = 51
 	
 	#Show An Error If The Constant Rate Factor Is Undefined
-	if ($strCrf -eq $null) {
+	if ($null -eq $strCrf) {
 		Write-Host "Constant Rate Factor Is Not Defined. Please Enter An Integer Ranging From $intMin-$intMax."
 		exit
 	}
 	
 	#Make Sure The CRF Is Set To An Integer Between 1 and 51
 	try {
-		$intCrf=0 + ([Math]::Round($strCrf))
+		$intCrf = 0 + ([Math]::Round($strCrf))
 	}
 	catch {
 		Write-Host "Constant Rate Factor: $strCrf`nIs Invalid. Please Use An Integer Ranging From 0-51"
@@ -890,9 +890,9 @@ function Check-CRF ($strCrf) {
 	}
 }
 
-function Check-Preset ($strPreset) {
+function Get-Preset ($strPreset) {
 	#Define An Array Of Valid Presets If This Is The Case
-	$arrValid=@('ultrafast','superfast','veryfast','faster','fast','medium','slow','slower','veryslow','placebo')
+	$arrValid = @('ultrafast', 'superfast', 'veryfast', 'faster', 'fast', 'medium', 'slow', 'slower', 'veryslow', 'placebo')
 	
 	#If There Is No Preset Defined, Don't Use One At All
 	if (!($strPreset)) {
@@ -911,7 +911,7 @@ function Check-Preset ($strPreset) {
 	}
 }
 
-function Check-AudioBitrate ($strAudioBitrate) {
+function Get-AudioBitrate ($strAudioBitrate) {
 	if (!$strAudioBitrate) {
 		return $null
 	}
@@ -938,7 +938,7 @@ function Check-AudioBitrate ($strAudioBitrate) {
 	}
 }
 
-function Check-AudioCodec ($strAudioCodec) {
+function Get-AudioCodec ($strAudioCodec) {
 	$arrValid = @('aac', 'ac3', 'vorbis', 'pcm')
 	
 	if (!$strAudioCodec) {
@@ -956,7 +956,7 @@ function Check-AudioCodec ($strAudioCodec) {
 	exit
 }
 
-function Check-VideoCodec ($strVideoCodec) {
+function Get-VideoCodec ($strVideoCodec) {
 	$arrValid = @('libx264', 'libx265')
 	
 	if (!$strVideoCodec) {
@@ -974,8 +974,8 @@ function Check-VideoCodec ($strVideoCodec) {
 	exit
 }
 
-function Check-SubCodec ($strSubCodec) {
-	$arrValid = @('ass','srt')
+function Get-SubCodec ($strSubCodec) {
+	$arrValid = @('ass', 'srt')
 	
 	if (!$strSubCodec) {
 		Write-Host ("Subtitle Codec Is Not Defined. Valid Codecs:`n" + ($arrValid -join ', '))
@@ -994,20 +994,20 @@ function Check-SubCodec ($strSubCodec) {
 
 function ConvertTo-Sexagesimal ([float]$floatDuration) {
 	#Split Up The Input String Into Hours, Minutes And Seconds
-	$strHours=[math]::truncate($floatDuration/3600)
-	$strMins=[math]::truncate($floatDuration/60)-($strHours*60)
-	$strSecs=$floatDuration-($strHours*3600)-($strMins*60)
+	$strHours = [math]::truncate($floatDuration / 3600)
+	$strMins = [math]::truncate($floatDuration / 60) - ($strHours * 60)
+	$strSecs = $floatDuration - ($strHours * 3600) - ($strMins * 60)
 	
 	#Convert Them Into The Appropriate String Formats
-	$strHours=([int]$strHours).ToString("00")
-	$strMins=([int]$strMins).ToString("00")
-	$strSecs=([Math]::Round(([float]$strSecs), 3)).ToString("00.000")
+	$strHours = ([int]$strHours).ToString("00")
+	$strMins = ([int]$strMins).ToString("00")
+	$strSecs = ([Math]::Round(([float]$strSecs), 3)).ToString("00.000")
 	
 	#added to fix localization causing $strSecs to have a comma (,) instead of a stop (.)
 	$strSecs = $StrSecs.Replace(',', '.')
 	
 	#Construct The Output String
-	$strDuration="$strHours`:$strMins`:$strSecs"
+	$strDuration = "$strHours`:$strMins`:$strSecs"
 	
 	#Return The Output String
 	return $strDuration
@@ -1015,18 +1015,18 @@ function ConvertTo-Sexagesimal ([float]$floatDuration) {
 
 function ConvertFrom-Sexagesimal ($strSexTime) {
 	#Split Up The Sexagesimal Time Into Hours, Minutes And Seconds
-	$strHours=[float]($strSexTime.Split(':')[0])*3600
-	$strMins=[float]($strSexTime.Split(':')[1])*60
-	$strSecs=[float]($strSexTime.Split(':')[2])
+	$strHours = [float]($strSexTime.Split(':')[0]) * 3600
+	$strMins = [float]($strSexTime.Split(':')[1]) * 60
+	$strSecs = [float]($strSexTime.Split(':')[2])
 	
 	#Add Up To Get A Total Time
-	$floatTime=$strHours+$strMins+$strSecs
+	$floatTime = $strHours + $strMins + $strSecs
 	
 	return $floatTime
 }
 
-function Cleanup-Files ($arrOutputFiles, $strChapterFile, $strMmgOutputFile, $arrSubInfo) {
-	if($arrOutputFiles) {
+function Remove-Files ($arrOutputFiles, $strChapterFile, $strMmgOutputFile, $arrSubInfo) {
+	if ($arrOutputFiles) {
 		foreach ($strOutputFile in $arrOutputFiles) {
 			if ($strOutputFile) {
 				if (Test-Path -LiteralPath $strOutputFile) {
@@ -1059,12 +1059,12 @@ function Cleanup-Files ($arrOutputFiles, $strChapterFile, $strMmgOutputFile, $ar
 	}
 }
 
-function Check-OffsetTime ($strOffsetTime) {
+function Get-OffsetTime ($strOffsetTime) {
 	$intMin = 0
 	$intMax = 1000
 	
 	#show an error if the offset time is undefined
-	if ($strOffsetTime -eq $null) {
+	if ($null -eq $strOffsetTime) {
 		Write-Host "Offset Time Is Not Defined. Please Enter An Integer Ranging From $intMin-$intMax."
 		exit
 	}
@@ -1079,7 +1079,7 @@ function Check-OffsetTime ($strOffsetTime) {
 	}
 	
 	if (($strOffsetTime -ge $intMin) -and ($strOffsetTime -le $intMax)) {
-		return ($strOffsetTime/2)/1000
+		return ($strOffsetTime / 2) / 1000
 	}
 	else {
 		#Handle The Error
@@ -1088,26 +1088,26 @@ function Check-OffsetTime ($strOffsetTime) {
 	}
 }
 
-function Escape-Backticks ($strInput) {
+function Get-EscapeBackticks ($strInput) {
 	#Escape Any Backticks In The Input String
-	$strOutput=$strInput.Replace('`','``')
+	$strOutput = $strInput.Replace('`', '``')
 
 	#Return The Result
 	return $strOutput
 }
 
-function Unescape-Backticks ($strInput) {
+function Get-UnescapeBackticks ($strInput) {
 	#Unescape Any Backticks In The Input String
-	$strOutput=$strInput.Replace('``','`')
+	$strOutput = $strInput.Replace('``', '`')
 
 	#Return The Result
 	return $strOutput
 }
 
-function Generate-SID {
+function Set-SID {
 	$arrHexValues = @()
 	
-	(0x00..0xff) | % {$arrHexvalues += $_.ToString("x2")}
+	(0x00..0xff) | ForEach-Object { $arrHexvalues += $_.ToString("x2") }
 	
 	$strSID = (Get-Random -InputObject $arrHexValues -Count 16) -join ''
 	
